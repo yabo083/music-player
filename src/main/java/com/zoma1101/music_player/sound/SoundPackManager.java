@@ -323,49 +323,59 @@ public class SoundPackManager {
     private void loadMusicDefinition(Path jsonPath, SoundPackInfo soundPackInfo) {
         try (Reader reader = Files.newBufferedReader(jsonPath, StandardCharsets.UTF_8)) {
             MusicDefinition definition = GSON.fromJson(reader, MusicDefinition.class);
-            if (definition == null || definition.musicFileInPack == null || definition.musicFileInPack.isBlank()) {
-                LOGGER.warn("  Invalid or incomplete music definition in file: {}. Missing 'musicFileInPack' field.", jsonPath);
+            if (definition == null || definition.getMusicFilesInPack().isEmpty()) {
+                LOGGER.warn("  Invalid or incomplete music definition in file: {}. Missing 'music' field.", jsonPath);
                 return;
             }
             definition.setSoundPackId(soundPackInfo.getId());
 
-            Path absoluteOggPath = soundPackInfo.getAssetsDirectory().resolve(definition.getMusicFileInPack());
-            if (!Files.exists(absoluteOggPath) || !Files.isRegularFile(absoluteOggPath)) {
-                LOGGER.warn("  Sound file not found for definition in {}: {} (Expected at {})",
-                        jsonPath.getFileName(), definition.getMusicFileInPack(), absoluteOggPath);
-                return;
-            }
-            definition.setAbsoluteOggPath(absoluteOggPath);
-
             String assetId = soundPackInfo.getAssetId();
-            String relativeOggPathFromPackAssets = definition.getMusicFileInPack();
-            String soundEventKey = getSoundEventKey(relativeOggPathFromPackAssets, assetId);
-            definition.setSoundEventKey(soundEventKey);
+            List<Path> absoluteOggPaths = new ArrayList<>();
+            List<String> soundEventKeys = new ArrayList<>();
+            List<ResourceLocation> oggResourceLocations = new ArrayList<>();
 
-            try {
+            for (String musicPath : definition.getMusicFilesInPack()) {
+                Path absoluteOggPath = soundPackInfo.getAssetsDirectory().resolve(musicPath);
+                if (!Files.exists(absoluteOggPath) || !Files.isRegularFile(absoluteOggPath)) {
+                    LOGGER.warn("  Sound file not found for definition in {}: {} (Expected at {})",
+                            jsonPath.getFileName(), musicPath, absoluteOggPath);
+                    return;
+                }
+
+                String soundEventKey = getSoundEventKey(musicPath, assetId);
                 ResourceLocation oggRLForName = ResourceLocation.fromNamespaceAndPath(Music_Player.MOD_ID, soundEventKey);
-                definition.setOggResourceLocation(oggRLForName);
 
                 String mapKeyPath = OGG_RESOURCE_SOUNDS_PREFIX + soundEventKey + ".ogg";
                 ResourceLocation mapKeyRL = ResourceLocation.fromNamespaceAndPath(Music_Player.MOD_ID, mapKeyPath);
-                oggResourceMap.put(mapKeyRL, absoluteOggPath);
-
-                if (definition.isValid()) {
-                    allMusicDefinitions.add(definition);
-                    musicDefinitionByEventKey.put(definition.getSoundEventKey(), definition);
-                    LOGGER.debug("  Loaded music definition: File='{}', EventKey='{}', NameRL='{}', MapKeyRL='{}', OggPath='{}'",
-                            definition.getMusicFileInPack(),
-                            definition.getSoundEventKey(),
-                            definition.getOggResourceLocation(),
-                            mapKeyRL,
-                            absoluteOggPath);
-                } else {
-                    LOGGER.warn("  Music definition from {} was parsed but deemed invalid. Def: {}", jsonPath, definition);
+                Path previous = oggResourceMap.put(mapKeyRL, absoluteOggPath);
+                if (previous != null && !previous.equals(absoluteOggPath)) {
+                    LOGGER.warn("  Duplicate generated sound key '{}'. Keeping latest file path: {}", mapKeyRL, absoluteOggPath);
                 }
-            } catch (ResourceLocationException e) {
-                LOGGER.warn("  Invalid RL components for AssetID '{}', file '{}'. Skipping. Error: {}",
-                        assetId, relativeOggPathFromPackAssets, e.getMessage());
+
+                absoluteOggPaths.add(absoluteOggPath);
+                soundEventKeys.add(soundEventKey);
+                oggResourceLocations.add(oggRLForName);
             }
+
+            definition.setAbsoluteOggPaths(absoluteOggPaths);
+            definition.setSoundEventKeys(soundEventKeys);
+            definition.setOggResourceLocations(oggResourceLocations);
+
+            if (definition.isValid()) {
+                allMusicDefinitions.add(definition);
+                for (String eventKey : definition.getSoundEventKeys()) {
+                    musicDefinitionByEventKey.put(eventKey, definition);
+                }
+                LOGGER.debug("  Loaded music definition: Files='{}', EventKeys='{}', NameRLs='{}'",
+                        definition.getMusicFilesInPack(),
+                        definition.getSoundEventKeys(),
+                        definition.getOggResourceLocations());
+            } else {
+                LOGGER.warn("  Music definition from {} was parsed but deemed invalid. Def: {}", jsonPath, definition);
+            }
+        } catch (ResourceLocationException e) {
+            LOGGER.warn("  Invalid RL components for AssetID '{}', file '{}'. Skipping. Error: {}",
+                    soundPackInfo.getAssetId(), jsonPath, e.getMessage());
         } catch (JsonSyntaxException e) {
             LOGGER.error("  Failed to parse JSON for music definition file: {}", jsonPath, e);
         } catch (IOException e) {
@@ -417,14 +427,24 @@ public class SoundPackManager {
                 LOGGER.warn("Skipping invalid definition during sounds.json generation: {}", def);
                 continue;
             }
-            JsonObject soundEntry = new JsonObject();
-            JsonArray soundsArray = new JsonArray();
-            JsonObject soundObject = new JsonObject();
-            soundObject.addProperty("name", def.getOggResourceLocation().toString());
-            soundObject.addProperty("stream", true);
-            soundsArray.add(soundObject);
-            soundEntry.add("sounds", soundsArray);
-            rootJson.add(def.getSoundEventKey(), soundEntry);
+            List<String> eventKeys = def.getSoundEventKeys();
+            List<ResourceLocation> locations = def.getOggResourceLocations();
+            for (int i = 0; i < eventKeys.size() && i < locations.size(); i++) {
+                String eventKey = eventKeys.get(i);
+                ResourceLocation location = locations.get(i);
+                JsonObject soundEntry = new JsonObject();
+                JsonArray soundsArray = new JsonArray();
+                JsonObject soundObject = new JsonObject();
+                soundObject.addProperty("name", location.toString());
+                soundObject.addProperty("stream", true);
+                soundsArray.add(soundObject);
+                soundEntry.add("sounds", soundsArray);
+
+                if (rootJson.has(eventKey)) {
+                    LOGGER.warn("Duplicate sounds.json key '{}' detected. Latest entry will overwrite previous one.", eventKey);
+                }
+                rootJson.add(eventKey, soundEntry);
+            }
         }
         if (rootJson.size() == 0) {
             LOGGER.warn("Generated sounds.json is empty after filtering active/valid definitions.");

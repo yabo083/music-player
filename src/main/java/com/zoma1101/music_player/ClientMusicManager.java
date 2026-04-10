@@ -2,6 +2,7 @@ package com.zoma1101.music_player;
 
 import com.mojang.logging.LogUtils;
 import com.zoma1101.music_player.sound.MusicDefinition;
+import com.zoma1101.music_player.sound.PlaylistNavigator;
 import com.zoma1101.music_player.util.MusicConditionEvaluator;
 import net.minecraft.ResourceLocationException;
 import net.minecraft.client.Minecraft;
@@ -21,7 +22,6 @@ import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
 import java.util.List;
-import java.util.Objects;
 
 @Mod.EventBusSubscriber(modid = Music_Player.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public class ClientMusicManager {
@@ -33,8 +33,11 @@ public class ClientMusicManager {
     private static SoundInstance currentMusicInstance = null;
     @Nullable
     private static String currentMusicSoundEventKey = null; // 再生されているべき曲の SoundEventKey (String)
+    @Nullable
+    private static MusicDefinition currentMusicDefinition = null;
     private static boolean isStopping = false;
     private static boolean isRecordPlaying = false; // レコードが再生中かどうかのフラグ
+    private static final PlaylistNavigator playlistNavigator = new PlaylistNavigator();
     @Nullable // 最後に再生されたレコードのインスタンスを保持
     private static SoundInstance lastPlayedRecordInstance = null;
 
@@ -86,6 +89,8 @@ public class ClientMusicManager {
         LOGGER.info("Player logged in. Resetting music state.");
         stopMusic(false);
         currentMusicSoundEventKey = null;
+        currentMusicDefinition = null;
+        playlistNavigator.reset();
         isRecordPlaying = false;
         lastPlayedRecordInstance = null;
         // ログイン直後はまだワールド情報が完全にロードされていない可能性があるため、
@@ -99,6 +104,8 @@ public class ClientMusicManager {
         LOGGER.info("Player logged out. Stopping music.");
         stopMusic(false);
         currentMusicSoundEventKey = null;
+        currentMusicDefinition = null;
+        playlistNavigator.reset();
         isRecordPlaying = false;
         lastPlayedRecordInstance = null;
     }
@@ -141,7 +148,9 @@ public class ClientMusicManager {
             }
 
             MusicDefinition def = Music_Player.soundPackManager.getMusicDefinitionByEventKey(playingSoundEventLocation.getPath());
-            boolean isTheCorrectModMusic = def != null && currentMusicSoundEventKey != null && currentMusicSoundEventKey.equals(def.getSoundEventKey());
+            boolean isTheCorrectModMusic = def != null
+                    && currentMusicSoundEventKey != null
+                    && currentMusicSoundEventKey.equals(playingSoundEventLocation.getPath());
 
             if (isTheCorrectModMusic) {
                 // 正しいMusic PlayerのBGMなので、再生を許可
@@ -180,6 +189,8 @@ public class ClientMusicManager {
                 stopMusic(true);
             }
             currentMusicSoundEventKey = null;
+            currentMusicDefinition = null;
+            playlistNavigator.reset();
             return;
         }
 
@@ -202,40 +213,45 @@ public class ClientMusicManager {
         MusicConditionEvaluator.CurrentContext context = MusicConditionEvaluator.getCurrentContext(player, mc.level, mc.screen);
         List<MusicDefinition> definitions = Music_Player.soundPackManager.getActiveMusicDefinitionsSorted();
         MusicDefinition bestMatch = findBestMatch(definitions, context);
+        boolean hasValidDefinition = bestMatch != null && bestMatch.isValid();
+        MusicDefinition nextDefinition = hasValidDefinition ? bestMatch : null;
+        boolean definitionChanged = nextDefinition != currentMusicDefinition;
 
-        String targetSoundEventKey = null;
-        String reason;
+        if (definitionChanged) {
+            String previousKey = currentMusicSoundEventKey;
+            stopMusic(false);
+            currentMusicDefinition = nextDefinition;
+            currentMusicSoundEventKey = null;
 
-        if (bestMatch != null && bestMatch.isValid()) {
-            targetSoundEventKey = bestMatch.getSoundEventKey();
-            reason = "SoundPack: " + bestMatch.getSoundPackId() + "/" + bestMatch.getMusicFileInPack() +
-                    " (Prio:" + bestMatch.getPriority() + ", Key:" + targetSoundEventKey + ")";
-        } else {
-            reason = "No matching MOD music definition.";
+            if (currentMusicDefinition != null) {
+                String nextTrackKey = playlistNavigator.nextTrackKey(currentMusicDefinition, true);
+                currentMusicSoundEventKey = nextTrackKey;
+                if (nextTrackKey != null) {
+                    playMusicByKey(nextTrackKey);
+                }
+                LOGGER.info("Music definition changed. Previous Key: [{}], New Definition: [{}], Next Track Key: [{}].",
+                        previousKey, describeDefinition(currentMusicDefinition), nextTrackKey);
+            } else {
+                playlistNavigator.reset();
+                LOGGER.info("Music definition changed. Previous Key: [{}], New Definition: [none].", previousKey);
+            }
+            return;
         }
 
-        if (!Objects.equals(targetSoundEventKey, currentMusicSoundEventKey)) {
-            LOGGER.info("Music change detected. Current Target Key: [{}], New Target Key: [{}]. Reason: [{}].",
-                    currentMusicSoundEventKey, targetSoundEventKey, reason);
+        SoundManager soundManager = Minecraft.getInstance().getSoundManager();
+        boolean shouldBePlaying = (currentMusicDefinition != null);
+        boolean isActuallyPlaying = (currentMusicInstance != null && soundManager.isActive(currentMusicInstance));
 
+        if (shouldBePlaying && !isActuallyPlaying) {
+            String nextTrackKey = playlistNavigator.nextTrackKey(currentMusicDefinition, false);
+            currentMusicSoundEventKey = nextTrackKey;
+            if (nextTrackKey != null) {
+                playMusicByKey(nextTrackKey);
+            }
+        } else if (!shouldBePlaying && isActuallyPlaying) {
+            LOGGER.warn("Music should NOT be playing, but instance for key [{}] is active. Stopping.", currentMusicSoundEventKey);
             stopMusic(true);
-            if (targetSoundEventKey != null) {
-                playMusicByKey(targetSoundEventKey);
-            }
-            currentMusicSoundEventKey = targetSoundEventKey;
-
-        } else {
-            SoundManager soundManager = Minecraft.getInstance().getSoundManager();
-            boolean shouldBePlaying = (currentMusicSoundEventKey != null);
-            boolean isActuallyPlaying = (currentMusicInstance != null && soundManager.isActive(currentMusicInstance));
-
-            if (shouldBePlaying && !isActuallyPlaying) {
-                playMusicByKey(currentMusicSoundEventKey); // playMusicByKey内でisRecordPlayingチェックあり
-            } else if (!shouldBePlaying && isActuallyPlaying) {
-                LOGGER.warn("Music should NOT be playing, but instance for key [{}] is active. Stopping.", currentMusicSoundEventKey);
-                stopMusic(true);
-                currentMusicSoundEventKey = null;
-            }
+            currentMusicSoundEventKey = null;
         }
     }
 
@@ -264,7 +280,7 @@ public class ClientMusicManager {
                     soundEventRl,
                     SoundSource.MUSIC,
                     1.0f, 1.0f, SoundInstance.createUnseededRandom(),
-                    true, // ループ再生
+                    false, // トラック終了で次曲選択できるようにループしない
                     0,    // 遅延なし
                     SoundInstance.Attenuation.NONE,
                     0.0D, 0.0D, 0.0D, // 相対位置ではないので絶対座標 (通常MUSICでは無視される)
@@ -308,5 +324,12 @@ public class ClientMusicManager {
             }
         }
         return null;
+    }
+
+    private static String describeDefinition(MusicDefinition definition) {
+        return "pack=" + definition.getSoundPackId()
+                + ", mode=" + definition.getPlaybackMode()
+                + ", tracks=" + definition.getMusicFilesInPack()
+                + ", priority=" + definition.getPriority();
     }
 }
