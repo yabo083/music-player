@@ -2,15 +2,15 @@
 
 Example soundpack: [Example-SoundPack](https://github.com/zoma1101/Example-SoundPack/tree/main)
 
-本模组支持根据条件自动切换 BGM。  
-将资源包放入 `.minecraft/soundpacks` 后，启用与 `pack_id` 同名的资源包即可播放。
+This mod plays dynamic background music based on in-game conditions.  
+Put your soundpack under `.minecraft/soundpacks`, then enable the resource pack that matches your `pack_id`.
 
-## 文件结构
+## File Layout
 
-- 条件文件: `soundpack/pack_id/assets/music_player/conditions/predicate.json`
-- 音频文件: `soundpack/pack_id/assets/pack_id/music/name.ogg`
+- Condition JSON: `soundpack/pack_id/assets/music_player/conditions/predicate.json`
+- OGG files: `soundpack/pack_id/assets/pack_id/music/name.ogg`
 
-## 条件 JSON 基础格式
+## Base Condition JSON
 
 ```json
 {
@@ -19,7 +19,7 @@ Example soundpack: [Example-SoundPack](https://github.com/zoma1101/Example-Sound
 }
 ```
 
-`music` 现在同时支持以下两种写法：
+`music` supports both forms:
 
 ```json
 {
@@ -33,14 +33,17 @@ Example soundpack: [Example-SoundPack](https://github.com/zoma1101/Example-Sound
 }
 ```
 
-## 播放方式控制（新增）
+## Playback Mode Control (New)
 
-通过额外字段控制多曲播放行为：
+Use extra fields to control how tracks are played:
 
-- `play_mode`: 播放模式，可选 `sequential` / `random` / `specified`
-- `play_order`: 仅在 `play_mode = "specified"` 时生效。用于指定顺序，可写索引字符串（如 `"2"`）或音乐路径（如 `"music/winter.ogg"`）
+- `play_mode`: `sequential` / `random` / `specified`
+- `play_order`: only used when `play_mode = "specified"`.  
+  Each item can be:
+  - an index string (for example `"2"`)
+  - a track path (for example `"music/winter.ogg"`)
 
-### 1) 顺序播放（按 music 列表顺序循环）
+### 1) Sequential playback (loop in `music` array order)
 
 ```json
 {
@@ -50,7 +53,7 @@ Example soundpack: [Example-SoundPack](https://github.com/zoma1101/Example-Sound
 }
 ```
 
-### 2) 随机播放（避免连续重复同一首）
+### 2) Random playback (avoids immediate repeats)
 
 ```json
 {
@@ -60,7 +63,7 @@ Example soundpack: [Example-SoundPack](https://github.com/zoma1101/Example-Sound
 }
 ```
 
-### 3) 按指定顺序播放
+### 3) Specified playback order
 
 ```json
 {
@@ -71,20 +74,20 @@ Example soundpack: [Example-SoundPack](https://github.com/zoma1101/Example-Sound
 }
 ```
 
-上例实际顺序为：`music/c.ogg -> music/a.ogg -> music/b.ogg`，然后循环。
+The example above resolves to: `music/c.ogg -> music/a.ogg -> music/b.ogg`, then loops.
 
-## 可用条件字段
+## Available Condition Fields
 
-- `biomes`: 指定生物群系（支持 biome tag）
-- `is_night`: 是否夜晚
-- `is_combat`: 是否战斗状态
-- `is_village`: 周围是否存在村民
-- `min_y`: 最低高度（大于等于）
-- `max_y`: 最高高度（小于等于）
-- `weather`: 天气条件（`clear` / `rain` / `thunder`）
-- `dimensions`: 维度列表
-- `gui_screen`: 指定 GUI 打开时播放（`crafting` / `inventory` / `furnace` / `brewing_stand` / `chest` / `creative`）
-- `entity_conditions`: 指定实体或实体标签列表
-- `radius`: 实体检测半径
-- `min_count`: 最小数量
-- `max_count`: 最大数量
+- `biomes`: target biomes (biome tags supported)
+- `is_night`: play only at night
+- `is_combat`: play during combat state
+- `is_village`: play when villagers are nearby
+- `min_y`: minimum Y level (inclusive)
+- `max_y`: maximum Y level (inclusive)
+- `weather`: weather filter (`clear` / `rain` / `thunder`)
+- `dimensions`: target dimensions
+- `gui_screen`: play only when a specific GUI is open (`crafting` / `inventory` / `furnace` / `brewing_stand` / `chest` / `creative`)
+- `entity_conditions`: entity IDs/tags for nearby entity checks
+- `radius`: entity check radius
+- `min_count`: minimum entity count
+- `max_count`: maximum entity count
