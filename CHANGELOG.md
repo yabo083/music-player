@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.2.1] - 2026-04-11
+
+### Fixed
+- Fixed a regression where tracks could never start when fade-in was enabled.
+  - Root cause: `FadingMusicSoundInstance` started at volume `0` but did not allow silent startup.
+  - Result: `SoundManager` never marked the instance active, causing endless retry logs and no audible playback.
+  - Fix: explicitly allow silent startup for fade-in/zero-volume startup scenarios.
+
+### Added
+- Added regression test for startup policy used by fading music playback.
+
 ## [1.2.0] - 2026-04-11
 
 ### Added
@@ -26,4 +37,3 @@ All notable changes to this project are documented in this file.
 ### Fixed
 - Reduced cases where tracks were switched too early.
 - Reduced cases where playback stopped unexpectedly after a failed activation.
-

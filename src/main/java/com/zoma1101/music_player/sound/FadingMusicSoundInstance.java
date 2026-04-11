@@ -23,7 +23,7 @@ public class FadingMusicSoundInstance extends AbstractTickableSoundInstance {
         this.relative = true;
         this.looping = false;
         this.delay = 0;
-        this.volume = this.fadeInTicks > 0 ? 0.0f : this.targetVolume;
+        this.volume = shouldAllowSilentStart(this.fadeInTicks, this.targetVolume) ? 0.0f : this.targetVolume;
     }
 
     @Override
@@ -74,6 +74,11 @@ public class FadingMusicSoundInstance extends AbstractTickableSoundInstance {
         return fadeOutProgressTicks >= 0;
     }
 
+    @Override
+    public boolean canStartSilent() {
+        return shouldAllowSilentStart(fadeInTicks, targetVolume);
+    }
+
     public void setTargetVolume(float targetVolume) {
         this.targetVolume = clampVolume(targetVolume);
         if (!isFadingOut() && (fadeInTicks <= 0 || ageTicks >= fadeInTicks)) {
@@ -83,5 +88,9 @@ public class FadingMusicSoundInstance extends AbstractTickableSoundInstance {
 
     private static float clampVolume(float value) {
         return Mth.clamp(value, 0.0f, 1.0f);
+    }
+
+    static boolean shouldAllowSilentStart(int fadeInTicks, float targetVolume) {
+        return fadeInTicks > 0 || clampVolume(targetVolume) <= 0.0f;
     }
 }

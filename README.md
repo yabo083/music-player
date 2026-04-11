@@ -123,6 +123,17 @@ When enabled, the HUD shows:
 
 The HUD is shown only while this MOD's music is actively playing.
 
+## Troubleshooting (No Music)
+
+If dynamic music does not play:
+
+1. Confirm your mod version is `1.2.1` or newer.
+2. Check `logs/latest.log`:
+   - if you repeatedly see `Track [...] did not become active. Retrying playback.`
+   - and never hear audio, you were likely hit by the fade-in startup regression fixed in `1.2.1`.
+3. Verify your soundpack OGG files exist at the expected paths.
+4. Keep `Music Volume` above `0%` in `Music Player Pack Settings`.
+
 ## Available Condition Fields
 
 - `biomes`: target biomes (biome tags supported)
