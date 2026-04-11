@@ -176,6 +176,15 @@ If dynamic music does not play:
 - `min_count`: minimum entity count
 - `max_count`: maximum entity count
 
+## Combat Precedence Rule
+
+Starting from `1.3.4`, combat music has explicit runtime precedence:
+
+- When the player is in combat, the selector tries `is_combat=true` definitions first.
+- If no combat definition matches, it falls back to normal ambient definitions.
+
+This means combat tracks can override day/night/weather/biome ambient tracks while combat is active, without requiring a higher manual `priority` than ambient definitions.
+
 Compatibility note:
 
 - Legacy aliases are accepted for backward compatibility:

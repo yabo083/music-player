@@ -401,13 +401,42 @@ public class ClientMusicManager {
 
     @Nullable
     private static MusicDefinition findBestMatch(List<MusicDefinition> definitions, MusicConditionEvaluator.CurrentContext context) {
+        return pickBestMatchingDefinition(definitions, context);
+    }
+
+    @Nullable
+    static MusicDefinition pickBestMatchingDefinition(List<MusicDefinition> definitions, MusicConditionEvaluator.CurrentContext context) {
+        List<MusicDefinition> validDefinitions = new ArrayList<>();
         for (MusicDefinition definition : definitions) {
             if (definition.isValid()) {
-                if (MusicConditionEvaluator.doesDefinitionMatch(definition, context)) {
-                    return definition;
-                }
+                validDefinitions.add(definition);
             } else {
                 LOGGER.warn("Skipping invalid music definition during match finding: {}", definition);
+            }
+        }
+
+        if (context.isInCombat) {
+            MusicDefinition combatMatch = findFirstMatching(validDefinitions, context, true);
+            if (combatMatch != null) {
+                return combatMatch;
+            }
+        }
+
+        return findFirstMatching(validDefinitions, context, false);
+    }
+
+    @Nullable
+    private static MusicDefinition findFirstMatching(
+            List<MusicDefinition> definitions,
+            MusicConditionEvaluator.CurrentContext context,
+            boolean combatOnly
+    ) {
+        for (MusicDefinition definition : definitions) {
+            if (combatOnly && !Boolean.TRUE.equals(definition.isCombat())) {
+                continue;
+            }
+            if (MusicConditionEvaluator.doesDefinitionMatch(definition, context)) {
+                return definition;
             }
         }
         return null;

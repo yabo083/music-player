@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.3.4] - 2026-04-12
+
+### Fixed
+- Fixed combat music not reliably overriding ambient tracks (day/night/weather/biome) after entering combat.
+  - Root cause 1: combat target detection depended too heavily on `mob.isAggressive()`, which is not stable for all mobs/modded mobs.
+  - Root cause 2: selector could pick a matching ambient definition before combat definitions when priorities/order allowed it.
+  - Fix:
+    - reworked combat engagement decision to use a stronger combat-relation signal set (targeting player, recent mutual damage, hostility/can-attack traits),
+    - enforced combat-first selection policy while `isInCombat=true` (tries `is_combat=true` definitions first, then falls back to ambient if none match).
+
+### Added
+- Added regression tests for:
+  - combat engagement decision edge cases,
+  - combat-first definition selection behavior during night-time combat scenarios.
+
 ## [1.3.3] - 2026-04-12
 
 ### Changed

@@ -5,6 +5,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.vehicle.Boat; // Boatをインポート
 import net.minecraft.world.entity.vehicle.Minecart; // Minecartをインポート
@@ -66,27 +67,48 @@ public class GameContextHelper {
     }
 
     private static boolean isMobEngagedWithPlayer(Mob mob, LocalPlayer player) {
-        if (!mob.isAggressive() || mob.hasCustomName() || isIgnoredPassenger(mob)) {
+        if (mob.hasCustomName() || isIgnoredPassenger(mob)) {
             return false;
         }
 
         LivingEntity target = mob.getTarget();
-        if (target != null && target.getId() == player.getId()) {
-            return true;
-        }
-
         LivingEntity mobLastHurtBy = mob.getLastHurtByMob();
-        if (mobLastHurtBy != null && mobLastHurtBy.getId() == player.getId()) {
-            return true;
-        }
-
         LivingEntity playerLastHurtMob = player.getLastHurtMob();
-        if (playerLastHurtMob != null && playerLastHurtMob.getId() == mob.getId()) {
+        LivingEntity playerLastHurtBy = player.getLastHurtByMob();
+
+        return shouldTreatAsCombatTarget(
+                mob instanceof Enemy,
+                mob.isAggressive(),
+                mob.canAttack(player),
+                target != null && target.getId() == player.getId(),
+                mobLastHurtBy != null && mobLastHurtBy.getId() == player.getId(),
+                playerLastHurtMob != null && playerLastHurtMob.getId() == mob.getId(),
+                playerLastHurtBy != null && playerLastHurtBy.getId() == mob.getId()
+        );
+    }
+
+    static boolean shouldTreatAsCombatTarget(
+            boolean hostileByClass,
+            boolean aggressive,
+            boolean canAttackPlayer,
+            boolean targetingPlayer,
+            boolean mobRecentlyHurtByPlayer,
+            boolean playerRecentlyHurtMob,
+            boolean playerRecentlyHurtByMob
+    ) {
+        boolean hasCombatRelation = targetingPlayer
+                || mobRecentlyHurtByPlayer
+                || playerRecentlyHurtMob
+                || playerRecentlyHurtByMob;
+        if (!hasCombatRelation) {
+            return false;
+        }
+
+        if (targetingPlayer || playerRecentlyHurtByMob) {
             return true;
         }
 
-        LivingEntity playerLastHurtBy = player.getLastHurtByMob();
-        return playerLastHurtBy != null && playerLastHurtBy.getId() == mob.getId();
+        return hostileByClass || aggressive || canAttackPlayer;
     }
 
     private static boolean isIgnoredPassenger(Mob mob) {
