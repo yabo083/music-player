@@ -74,4 +74,38 @@ class MusicDefinitionParsingTest {
 
         assertEquals(List.of(0, 1, 2), definition.resolvePlaybackOrderIndices());
     }
+
+    @Test
+    void resolvesVolumeAndFadeSettingsWithFallbackAndClamp() {
+        String json = """
+                {
+                  "priority": 2,
+                  "music": "music/theme.ogg",
+                  "volume": 1.5,
+                  "fade_in_ticks": -8,
+                  "fade_out_ticks": 60
+                }
+                """;
+
+        MusicDefinition definition = gson.fromJson(json, MusicDefinition.class);
+
+        assertEquals(1.0f, definition.resolveVolumeMultiplier(0.75f));
+        assertEquals(40, definition.resolveFadeInTicks(40));
+        assertEquals(60, definition.resolveFadeOutTicks(40));
+    }
+
+    @Test
+    void usesFallbackVolumeWhenValueIsInvalid() {
+        String json = """
+                {
+                  "priority": 2,
+                  "music": "music/theme.ogg",
+                  "volume": -3
+                }
+                """;
+
+        MusicDefinition definition = gson.fromJson(json, MusicDefinition.class);
+
+        assertEquals(0.75f, definition.resolveVolumeMultiplier(0.75f));
+    }
 }

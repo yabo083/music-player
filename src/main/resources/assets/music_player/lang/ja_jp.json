@@ -3,6 +3,12 @@
   "gui.music_player.soundpack_selection.open_folder": "サウンドパックフォルダを開く",
   "gui.music_player.soundpack_selection.reload_packs": "サウンドパックを再読込",
   "gui.music_player.soundpack_selection.no_packs": "「soundpacks」フォルダにサウンドパックが見つかりません。",
+  "gui.music_player.soundpack_selection.music_volume": "音量: %s%%",
+  "gui.music_player.soundpack_selection.fade_in": "フェードイン: %s 秒",
+  "gui.music_player.soundpack_selection.fade_out": "フェードアウト: %s 秒",
+  "gui.music_player.soundpack_selection.now_playing.enabled": "再生中表示: ON",
+  "gui.music_player.soundpack_selection.now_playing.disabled": "再生中表示: OFF",
   "gui.music_player.open_soundpack_screen": "音楽プレイヤー パック設定",
+  "hud.music_player.now_playing": "再生中: %s",
   "narrator.list.select": "選択中: %s"
 }

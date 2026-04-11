@@ -3,6 +3,12 @@
   "gui.music_player.soundpack_selection.open_folder": "Open Soundpack Folder",
   "gui.music_player.soundpack_selection.reload_packs": "Reload Soundpacks",
   "gui.music_player.soundpack_selection.no_packs": "No soundpacks found in 'soundpacks' folder.",
+  "gui.music_player.soundpack_selection.music_volume": "Music Volume: %s%%",
+  "gui.music_player.soundpack_selection.fade_in": "Fade In: %s s",
+  "gui.music_player.soundpack_selection.fade_out": "Fade Out: %s s",
+  "gui.music_player.soundpack_selection.now_playing.enabled": "Now Playing HUD: ON",
+  "gui.music_player.soundpack_selection.now_playing.disabled": "Now Playing HUD: OFF",
   "gui.music_player.open_soundpack_screen": "Music Player Pack Settings",
+  "hud.music_player.now_playing": "Now Playing: %s",
   "narrator.list.select": "Selected: %s"
 }

@@ -2,10 +2,15 @@
 
 Example soundpack: [Example-SoundPack](https://github.com/zoma1101/Example-SoundPack/tree/main)
 
-This mod plays dynamic background music based on in-game conditions.  
-Put your soundpack under `.minecraft/soundpacks`, then enable the resource pack that matches your `pack_id`.
+This mod plays dynamic background music based on in-game conditions.
 
-## File Layout
+## Quick Start
+
+1. Put your soundpack under `.minecraft/soundpacks`
+2. Enable the resource pack that matches your `pack_id`
+3. Open Minecraft resource pack screen and click `Music Player Pack Settings`
+
+## Soundpack Layout
 
 - Condition JSON: `soundpack/pack_id/assets/music_player/conditions/predicate.json`
 - OGG files: `soundpack/pack_id/assets/pack_id/music/name.ogg`
@@ -33,17 +38,14 @@ Put your soundpack under `.minecraft/soundpacks`, then enable the resource pack 
 }
 ```
 
-## Playback Mode Control (New)
+## Playback Mode Control
 
-Use extra fields to control how tracks are played:
+Use extra fields to control track order:
 
 - `play_mode`: `sequential` / `random` / `specified`
-- `play_order`: only used when `play_mode = "specified"`.  
-  Each item can be:
-  - an index string (for example `"2"`)
-  - a track path (for example `"music/winter.ogg"`)
+- `play_order`: only used when `play_mode = "specified"`
 
-### 1) Sequential playback (loop in `music` array order)
+### Sequential playback
 
 ```json
 {
@@ -53,7 +55,7 @@ Use extra fields to control how tracks are played:
 }
 ```
 
-### 2) Random playback (avoids immediate repeats)
+### Random playback (avoids immediate repeat)
 
 ```json
 {
@@ -63,7 +65,7 @@ Use extra fields to control how tracks are played:
 }
 ```
 
-### 3) Specified playback order
+### Specified playback order
 
 ```json
 {
@@ -74,7 +76,52 @@ Use extra fields to control how tracks are played:
 }
 ```
 
-The example above resolves to: `music/c.ogg -> music/a.ogg -> music/b.ogg`, then loops.
+The example above resolves to:
+`music/c.ogg -> music/a.ogg -> music/b.ogg`, then loops.
+
+## Playback Tuning Fields (Per Condition)
+
+You can tune loudness and transition durations per condition:
+
+- `volume`: `0.0` to `1.0` (fallback is current client volume setting)
+- `fade_in_ticks`: fade-in duration in game ticks (`20` ticks = `1` second)
+- `fade_out_ticks`: fade-out duration in game ticks (`20` ticks = `1` second)
+
+Example:
+
+```json
+{
+  "priority": 30,
+  "music": ["music/night_a.ogg", "music/night_b.ogg"],
+  "play_mode": "random",
+  "volume": 0.8,
+  "fade_in_ticks": 30,
+  "fade_out_ticks": 25
+}
+```
+
+If `fade_in_ticks` / `fade_out_ticks` are missing, the client settings panel values are used.
+
+## Client Playback Controls
+
+From `Music Player Pack Settings`:
+
+- `Music Volume` slider: global MOD music volume
+- `Fade In` slider: default fade-in duration
+- `Fade Out` slider: default fade-out duration
+- `Now Playing HUD` switch: show/hide current track text
+
+These settings are stored in:
+
+- `config/music_player_client_settings.json`
+
+## Now Playing HUD
+
+When enabled, the HUD shows:
+
+- `Now Playing: <track name>`
+
+The HUD is shown only while this MOD's music is actively playing.
 
 ## Available Condition Fields
 

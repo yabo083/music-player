@@ -17,9 +17,20 @@ The architecture separates condition matching from audio resource provisioning, 
 - `ClientMusicManager`
   - Tick-driven client playback controller
   - Computes the best active definition, blocks conflicting music sources, and handles play/stop transitions
+  - Renders optional `Now Playing` HUD and applies runtime playback settings
 - `PlaylistNavigator`
   - Computes the next track within a multi-track `MusicDefinition`
   - Supports sequential, random, and specified order modes
+- `PlaybackHealthTracker`
+  - Guards against transient inactive states
+  - Distinguishes between "failed to start" and "natural end"
+  - Provides retry/advance decisions to `ClientMusicManager`
+- `FadingMusicSoundInstance`
+  - Tickable music instance with mutable volume
+  - Implements fade-in and fade-out transitions
+- `ClientPlaybackSettings`
+  - Persists client-side playback defaults (volume, fade durations, HUD toggle)
+  - Serves as fallback values for condition-level tuning fields
 - `MusicConditionEvaluator`
   - Evaluates rules against player context (biome, time, weather, dimension, entities, GUI, etc.)
 
@@ -44,6 +55,18 @@ The architecture separates condition matching from audio resource provisioning, 
     - track path (for example `"music/winter.ogg"`)
   - Any tracks not covered in `play_order` are appended in original `music` order
 
+### 3.3 Playback Tuning Fields
+
+- `volume`
+  - Per-condition volume multiplier (0.0 to 1.0)
+  - Final runtime volume = client global volume × condition volume multiplier
+- `fade_in_ticks`
+  - Per-condition fade-in duration (ticks)
+  - Falls back to client playback settings when omitted/invalid
+- `fade_out_ticks`
+  - Per-condition fade-out duration (ticks)
+  - Falls back to client playback settings when omitted/invalid
+
 ## 4. Playback Decision and Data Flow
 
 1. `SoundPackManager` loads each `MusicDefinition` and maps every `music` item to its own `soundEventKey`.
@@ -52,12 +75,19 @@ The architecture separates condition matching from audio resource provisioning, 
    - stop current music
    - reset/initialize `PlaylistNavigator`
    - select and play the first track for the new definition
-4. When the current track ends naturally:
-   - `PlaylistNavigator` computes the next track from `play_mode`
-   - the manager plays that next track and updates `currentMusicSoundEventKey`
+4. During playback health checks:
+   - `PlaybackHealthTracker` monitors active/inactive heartbeats
+   - if a track never becomes active, the manager retries before skipping
+   - if inactivity is confirmed after active playback, it advances with `PlaylistNavigator`
+5. On transitions (definition switch, retry, next track):
+   - outgoing track is faded out via `FadingMusicSoundInstance`
+   - incoming track is started with fade-in and updated `currentMusicSoundEventKey`
+6. HUD output:
+   - while MOD music is active, optional `Now Playing` text is rendered
 
 ## 5. Compatibility Constraints
 
 - Existing single-track configs remain valid.
 - Multi-track support extends only post-match track selection behavior; condition evaluation rules are unchanged.
 - `onPlaySound` validates against `currentMusicSoundEventKey` to avoid blocking non-first tracks from the same matched definition.
+- If per-condition tuning fields are absent, client playback settings are used as defaults.

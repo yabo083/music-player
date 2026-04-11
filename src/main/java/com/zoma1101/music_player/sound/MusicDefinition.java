@@ -41,6 +41,18 @@ public class MusicDefinition {
     @Nullable
     public List<String> playOrder = null;
 
+    @SerializedName("volume")
+    @Nullable
+    public Float volume = null;
+
+    @SerializedName(value = "fade_in_ticks", alternate = {"fade_in"})
+    @Nullable
+    public Integer fadeInTicks = null;
+
+    @SerializedName(value = "fade_out_ticks", alternate = {"fade_out"})
+    @Nullable
+    public Integer fadeOutTicks = null;
+
     @SerializedName("biomes")
     @Nullable
     public List<String> biomes = null;
@@ -192,6 +204,34 @@ public class MusicDefinition {
         return null;
     }
 
+    public float resolveVolumeMultiplier(float fallbackVolume) {
+        float safeFallback = clampVolume(fallbackVolume);
+        if (volume == null || Float.isNaN(volume) || Float.isInfinite(volume) || volume < 0.0f) {
+            return safeFallback;
+        }
+        return clampVolume(volume);
+    }
+
+    public int resolveFadeInTicks(int fallbackFadeInTicks) {
+        return resolveFadeTicks(fadeInTicks, fallbackFadeInTicks);
+    }
+
+    public int resolveFadeOutTicks(int fallbackFadeOutTicks) {
+        return resolveFadeTicks(fadeOutTicks, fallbackFadeOutTicks);
+    }
+
+    private static int resolveFadeTicks(@Nullable Integer value, int fallback) {
+        int safeFallback = Math.max(0, fallback);
+        if (value == null || value < 0) {
+            return safeFallback;
+        }
+        return value;
+    }
+
+    private static float clampVolume(float value) {
+        return Math.max(0.0f, Math.min(1.0f, value));
+    }
+
     @Nullable
     public List<String> getBiomes() { return biomes; }
     @Nullable
@@ -335,6 +375,9 @@ public class MusicDefinition {
                 ", musicFilesInPack=" + musicFilesInPack +
                 ", playMode='" + playMode + '\'' +
                 ", playOrder=" + playOrder +
+                ", volume=" + volume +
+                ", fadeInTicks=" + fadeInTicks +
+                ", fadeOutTicks=" + fadeOutTicks +
                 ", priority=" + priority +
                 ", soundEventKeys=" + soundEventKeys +
                 ", oggResourceLocations=" + oggResourceLocations +
