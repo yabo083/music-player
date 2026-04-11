@@ -9,6 +9,7 @@ import com.zoma1101.music_player.sound.MusicDefinition;
 import com.zoma1101.music_player.sound.PlaybackHealthTracker;
 import com.zoma1101.music_player.sound.PlaybackStartNotifier;
 import com.zoma1101.music_player.sound.PlaylistNavigator;
+import com.zoma1101.music_player.util.GameContextHelper;
 import com.zoma1101.music_player.util.MusicConditionEvaluator;
 import net.minecraft.ResourceLocationException;
 import net.minecraft.client.Minecraft;
@@ -18,11 +19,16 @@ import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.monster.Enemy;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.RenderGuiEvent;
 import net.minecraftforge.client.event.sound.PlaySoundEvent;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.living.LivingHurtEvent;
+import net.minecraftforge.event.entity.player.AttackEntityEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.slf4j.Logger;
@@ -53,6 +59,8 @@ public class ClientMusicManager {
 
     private static boolean isStopping = false;
     private static boolean isRecordPlaying = false;
+    @Nullable
+    private static Boolean lastObservedCombatState = null;
     @Nullable
     private static SoundInstance lastPlayedRecordInstance = null;
 
@@ -176,6 +184,43 @@ public class ClientMusicManager {
         nowPlayingOverlayController.render(event);
     }
 
+    @SubscribeEvent
+    public static void onAttackEntity(AttackEntityEvent event) {
+        Minecraft mc = Minecraft.getInstance();
+        LocalPlayer localPlayer = mc.player;
+        if (localPlayer == null || event.getEntity().getId() != localPlayer.getId()) {
+            return;
+        }
+
+        Entity target = event.getTarget();
+        if (target instanceof Enemy || target instanceof Mob) {
+            GameContextHelper.registerClientCombatPulse("player_attack");
+        }
+    }
+
+    @SubscribeEvent
+    public static void onLivingHurt(LivingHurtEvent event) {
+        Minecraft mc = Minecraft.getInstance();
+        LocalPlayer localPlayer = mc.player;
+        if (localPlayer == null) {
+            return;
+        }
+
+        Entity sourceEntity = event.getSource().getEntity();
+        if (event.getEntity().getId() == localPlayer.getId()) {
+            if (sourceEntity instanceof Enemy || sourceEntity instanceof Mob) {
+                GameContextHelper.registerClientCombatPulse("player_hurt");
+            }
+            return;
+        }
+
+        if (sourceEntity != null
+                && sourceEntity.getId() == localPlayer.getId()
+                && (event.getEntity() instanceof Enemy || event.getEntity() instanceof Mob)) {
+            GameContextHelper.registerClientCombatPulse("enemy_hurt_by_player");
+        }
+    }
+
     public static void onPlaybackSettingsChanged() {
         nowPlayingOverlayController.setStyle(ClientPlaybackSettings.getOverlayStyle());
         if (currentMusicInstance != null) {
@@ -214,6 +259,7 @@ public class ClientMusicManager {
         }
 
         MusicConditionEvaluator.CurrentContext context = MusicConditionEvaluator.getCurrentContext(player, mc.level, mc.screen);
+        logCombatStateTransition(player, context);
         List<MusicDefinition> definitions = Music_Player.soundPackManager.getActiveMusicDefinitionsSorted();
         MusicDefinition bestMatch = findBestMatch(definitions, context);
         boolean hasValidDefinition = bestMatch != null && bestMatch.isValid();
@@ -396,6 +442,7 @@ public class ClientMusicManager {
         playlistNavigator.reset();
         playbackHealthTracker.reset();
         isRecordPlaying = false;
+        lastObservedCombatState = null;
         lastPlayedRecordInstance = null;
     }
 
@@ -418,8 +465,10 @@ public class ClientMusicManager {
         if (context.isInCombat) {
             MusicDefinition combatMatch = findFirstMatching(validDefinitions, context, true);
             if (combatMatch != null) {
+                LOGGER.debug("Combat context active. Selected combat definition: {}", describeDefinition(combatMatch));
                 return combatMatch;
             }
+            LOGGER.debug("Combat context active but no combat-only definition matched. Falling back to ambient definitions.");
         }
 
         return findFirstMatching(validDefinitions, context, false);
@@ -500,5 +549,22 @@ public class ClientMusicManager {
                 + ", mode=" + definition.getPlaybackMode()
                 + ", tracks=" + definition.getMusicFilesInPack()
                 + ", priority=" + definition.getPriority();
+    }
+
+    private static void logCombatStateTransition(LocalPlayer player, MusicConditionEvaluator.CurrentContext context) {
+        if (lastObservedCombatState == null || lastObservedCombatState.booleanValue() != context.isInCombat) {
+            String attacker = player.getLastHurtByMob() == null ? "none" : player.getLastHurtByMob().getType().toString();
+            String defender = player.getLastHurtMob() == null ? "none" : player.getLastHurtMob().getType().toString();
+            LOGGER.info(
+                    "Combat context switched: {} -> {} (health={}, pos={}, lastHurtBy={}, lastHurtMob={})",
+                    lastObservedCombatState,
+                    context.isInCombat,
+                    Mth.floor(player.getHealth() * 10.0F) / 10.0F,
+                    player.blockPosition(),
+                    attacker,
+                    defender
+            );
+            lastObservedCombatState = context.isInCombat;
+        }
     }
 }

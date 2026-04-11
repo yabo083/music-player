@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.3.5] - 2026-04-12
+
+### Fixed
+- Fixed cases where client combat music never triggered even during real fights in survival.
+  - Root cause: combat detection relied mainly on client-side mob relation state (`target` / `lastHurt*`), which can be incomplete or delayed on the client in modded environments.
+  - Fix:
+    - added event-driven combat pulses from client attack/hurt events,
+    - merged pulse signal into combat-state tracking with grace window support,
+    - added explicit combat state transition logs for easier field diagnosis.
+
+### Added
+- Added `CombatPulseTracker` and dedicated regression tests for pulse behavior.
+
 ## [1.3.4] - 2026-04-12
 
 ### Fixed

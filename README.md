@@ -185,6 +185,8 @@ Starting from `1.3.4`, combat music has explicit runtime precedence:
 
 This means combat tracks can override day/night/weather/biome ambient tracks while combat is active, without requiring a higher manual `priority` than ambient definitions.
 
+Starting from `1.3.5`, combat entry additionally uses event-driven pulses (player attack / player hurt / enemy hurt by player), so combat tracks can trigger reliably even when some client mob AI relation fields are delayed or not synchronized in heavily modded packs.
+
 Compatibility note:
 
 - Legacy aliases are accepted for backward compatibility:

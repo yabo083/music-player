@@ -1,5 +1,6 @@
 package com.zoma1101.music_player.util; // パッケージは適切に設定
 
+import com.mojang.logging.LogUtils;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
@@ -11,6 +12,7 @@ import net.minecraft.world.entity.vehicle.Boat; // Boatをインポート
 import net.minecraft.world.entity.vehicle.Minecart; // Minecartをインポート
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
+import org.slf4j.Logger;
 
 import java.util.HashSet;
 import java.util.List;
@@ -20,11 +22,16 @@ import java.util.Set;
  * ゲーム内の特定のコンテキスト（戦闘状態、村など）を判断するためのヘルパークラス。
  */
 public class GameContextHelper {
+    private static final Logger LOGGER = LogUtils.getLogger();
 
     // 戦闘状態追跡用のフィールド
     private static final Set<Integer> activeCombatEntityIds = new HashSet<>();
     private static final int COMBAT_EXIT_GRACE_TICKS = 80;
+    private static final int CLIENT_COMBAT_PULSE_TICKS = 80;
+    private static final int COMBAT_PULSE_SENTINEL_ID = Integer.MIN_VALUE;
     private static final CombatStateTracker combatStateTracker = new CombatStateTracker(COMBAT_EXIT_GRACE_TICKS);
+    private static final CombatPulseTracker combatPulseTracker = new CombatPulseTracker(CLIENT_COMBAT_PULSE_TICKS);
+    private static boolean lastComputedCombatState = false;
 
     // 戦闘・村判定で使用する定数
     private static final double COMBAT_CHECK_RADIUS = 24.0; // 戦闘判定の半径
@@ -44,7 +51,9 @@ public class GameContextHelper {
     public static boolean updateCombatStateAndCheck(LocalPlayer player, Level level) {
         if (player == null || level == null) {
             activeCombatEntityIds.clear(); // プレイヤーやレベルが無効なら戦闘状態クリア
+            combatPulseTracker.reset();
             combatStateTracker.reset();
+            lastComputedCombatState = false;
             return false;
         }
 
@@ -61,9 +70,33 @@ public class GameContextHelper {
             }
         }
 
+        boolean hasEventPulse = combatPulseTracker.tickAndCheckActive();
+        if (hasEventPulse) {
+            currentlyEngagedIds.add(COMBAT_PULSE_SENTINEL_ID);
+        }
+
         activeCombatEntityIds.clear();
         activeCombatEntityIds.addAll(currentlyEngagedIds);
-        return combatStateTracker.update(currentlyEngagedIds);
+        activeCombatEntityIds.remove(COMBAT_PULSE_SENTINEL_ID);
+
+        boolean inCombat = combatStateTracker.update(currentlyEngagedIds);
+        if (inCombat != lastComputedCombatState) {
+            LOGGER.info(
+                    "Combat state changed: {} -> {} (engagedMobs={}, eventPulseActive={}, pulseTicksLeft={})",
+                    lastComputedCombatState,
+                    inCombat,
+                    activeCombatEntityIds.size(),
+                    hasEventPulse,
+                    combatPulseTracker.getRemainingTicks()
+            );
+            lastComputedCombatState = inCombat;
+        }
+        return inCombat;
+    }
+
+    public static void registerClientCombatPulse(String reason) {
+        combatPulseTracker.pulse();
+        LOGGER.debug("Registered client combat pulse (reason={}), pulseTicksLeft={}", reason, combatPulseTracker.getRemainingTicks());
     }
 
     private static boolean isMobEngagedWithPlayer(Mob mob, LocalPlayer player) {
