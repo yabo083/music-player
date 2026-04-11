@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.3.2] - 2026-04-11
+
+### Fixed
+- Fixed startup/resource-reload ordering issue that could leave `sounds.json` empty on first load.
+  - Symptom: repeated `Unable to play unknown soundEvent: music_player:...` and no music.
+  - Root cause: dynamic sound data was requested before sound pack discovery completed.
+  - Fix: added bootstrap refresh path in `ModSoundResourcePack` to discover packs and populate data whenever sound resources are requested with empty state.
+
 ## [1.3.1] - 2026-04-11
 
 ### Fixed

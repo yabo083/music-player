@@ -35,6 +35,8 @@ public class ModSoundResourcePack implements PackResources, PreparableReloadList
     private final String packId;
     private String soundsJsonContent = "{}";
     private Map<ResourceLocation, Path> oggResourceMap = Collections.emptyMap();
+    private final Object dataRefreshLock = new Object();
+    private boolean bootstrapAttempted = false;
 
     public static final ResourceLocation SOUNDS_JSON_RL = ResourceLocation.fromNamespaceAndPath(Music_Player.MOD_ID, "sounds.json");
     private static final String OGG_RESOURCE_SOUNDS_PREFIX = "sounds/";
@@ -51,14 +53,12 @@ public class ModSoundResourcePack implements PackResources, PreparableReloadList
         return CompletableFuture.runAsync(() -> {
             preparationsProfiler.push("MusicPlayerSoundPackReloadPrepare");
             LOGGER.debug("[{}] Preparing Music Player sound pack data (prepare phase)...", packId);
-            // In previous iterations, SoundPackManager.discoverAndLoadPacks() was called here.
-            // Ensure that SoundPackManager's state is correctly managed if re-introducing that call.
+            refreshSoundData(true, "reload prepare");
             preparationsProfiler.pop();
         }, backgroundExecutor).thenCompose(stage::wait).thenRunAsync(() -> {
             reloadProfiler.push("MusicPlayerSoundPackReloadApply");
             LOGGER.debug("[{}] Applying Music Player sound pack data (apply phase)...", packId);
-            this.soundsJsonContent = Music_Player.soundPackManager.generateSoundsJsonContent();
-            this.oggResourceMap = Music_Player.soundPackManager.getOggResourceMap();
+            refreshSoundData(false, "reload apply");
             LOGGER.info("[{}] Applied new sound data. sounds.json length: {}, ogg files: {}",
                     packId, this.soundsJsonContent.length(), this.oggResourceMap.size());
             if ("{}".equals(this.soundsJsonContent) && !this.oggResourceMap.isEmpty()) {
@@ -95,9 +95,8 @@ public class ModSoundResourcePack implements PackResources, PreparableReloadList
             LOGGER.debug("[{}] getResource - Handling SOUNDS.JSON request for: {}", currentPackId, location);
             if ("{}".equals(this.soundsJsonContent)) {
                 LOGGER.warn("[{}] getResource - SOUNDS.JSON was empty. FALLBACK: Regenerating data.", currentPackId);
-                // Fallback to regenerate data if reload might not have completed in time.
-                this.soundsJsonContent = Music_Player.soundPackManager.generateSoundsJsonContent();
-                this.oggResourceMap = Music_Player.soundPackManager.getOggResourceMap();
+                // Fallback to bootstrap data when resource load order asks for sounds.json very early.
+                refreshSoundData(false, "sounds.json fallback");
                 LOGGER.debug("[{}] getResource - FALLBACK COMPLETE: sounds.json length: {}, ogg files: {}",
                         currentPackId, this.soundsJsonContent.length(), this.oggResourceMap.size());
             }
@@ -118,7 +117,7 @@ public class ModSoundResourcePack implements PackResources, PreparableReloadList
             LOGGER.debug("[{}] getResource - OGG REQUEST identified for: {}", currentPackId, location);
             if (this.oggResourceMap == null || this.oggResourceMap.isEmpty()) {
                 LOGGER.warn("[{}] getResource - OGG REQUEST: oggResourceMap is null or empty for {}. Attempting to re-populate.", currentPackId, location);
-                this.oggResourceMap = Music_Player.soundPackManager.getOggResourceMap(); // Attempt to re-fetch
+                refreshSoundData(false, "ogg fallback");
                 LOGGER.debug("[{}] getResource - OGG REQUEST: oggResourceMap re-populated, new size: {}.", currentPackId, this.oggResourceMap.size());
             }
 
@@ -201,6 +200,10 @@ public class ModSoundResourcePack implements PackResources, PreparableReloadList
                     currentPackId, namespace, path);
 
             // 1. sounds.json listing
+            if ("{}".equals(this.soundsJsonContent) || this.oggResourceMap == null || this.oggResourceMap.isEmpty()) {
+                refreshSoundData(false, "listResources bootstrap");
+            }
+
             if (path.isEmpty() || SOUNDS_JSON_RL.getPath().startsWith(path)) {
                 if (!"{}".equals(this.soundsJsonContent) || path.isEmpty() || SOUNDS_JSON_RL.getPath().equals(path)) {
                     LOGGER.debug("[{}] listResources - Attempting to list {} for path query '{}'. Current soundsJsonContent length: {}",
@@ -270,6 +273,28 @@ public class ModSoundResourcePack implements PackResources, PreparableReloadList
                         }
                     });
                 }
+            }
+        }
+    }
+
+    private void refreshSoundData(boolean forceDiscover, String reason) {
+        synchronized (dataRefreshLock) {
+            boolean missingData = "{}".equals(this.soundsJsonContent)
+                    || this.oggResourceMap == null
+                    || this.oggResourceMap.isEmpty();
+            if (!forceDiscover && !missingData) {
+                return;
+            }
+            if (!forceDiscover && bootstrapAttempted && missingData) {
+                return;
+            }
+
+            if (forceDiscover || missingData) {
+                LOGGER.info("[{}] Refreshing sound data (reason: {}, forceDiscover={})", packId, reason, forceDiscover);
+                Music_Player.soundPackManager.discoverAndLoadPacks();
+                this.soundsJsonContent = Music_Player.soundPackManager.generateSoundsJsonContent();
+                this.oggResourceMap = Music_Player.soundPackManager.getOggResourceMap();
+                bootstrapAttempted = true;
             }
         }
     }

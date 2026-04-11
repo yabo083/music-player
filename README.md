@@ -146,12 +146,13 @@ Corner anchors (`TOP_LEFT`, `BOTTOM_LEFT`, `TOP_RIGHT`, `BOTTOM_RIGHT`) prioriti
 
 If dynamic music does not play:
 
-1. Confirm your mod version is `1.3.1` or newer.
+1. Confirm your mod version is `1.3.2` or newer.
 2. Check `logs/latest.log`:
    - if you see `Unable to play unknown soundEvent: music_player:...`, your selected resource pack does not provide that sound event path.
    - if you repeatedly see `Track [...] did not become active. Retrying playback.`, verify the OGG file exists and path matches the generated sound event key.
 3. Verify your soundpack OGG files exist at the expected paths.
 4. Keep `Music Volume` above `0%` in `Music Player Pack Settings`.
+5. If you are on `1.3.1` or older and only see `unknown soundEvent` right after startup, press `F3+T` once to reload resources as a temporary workaround.
 
 ## Troubleshooting (Repeated Now Playing / Vanilla Duet)
 
