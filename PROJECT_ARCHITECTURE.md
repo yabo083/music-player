@@ -17,7 +17,7 @@ The architecture separates condition matching from audio resource provisioning, 
 - `ClientMusicManager`
   - Tick-driven client playback controller
   - Computes the best active definition, blocks conflicting music sources, and handles play/stop transitions
-  - Renders optional `Now Playing` HUD and applies runtime playback settings
+  - Publishes track start/stop events to playback observers
 - `PlaylistNavigator`
   - Computes the next track within a multi-track `MusicDefinition`
   - Supports sequential, random, and specified order modes
@@ -29,8 +29,19 @@ The architecture separates condition matching from audio resource provisioning, 
   - Tickable music instance with mutable volume
   - Implements fade-in and fade-out transitions
 - `ClientPlaybackSettings`
-  - Persists client-side playback defaults (volume, fade durations, HUD toggle)
-  - Serves as fallback values for condition-level tuning fields
+  - Persists client-side playback defaults (volume, fade durations)
+  - Persists `overlay_style` for now-playing text component
+  - Serves as fallback values for condition-level tuning fields and HUD style
+- `NowPlayingOverlayController`
+  - Implements state-driven toast lifecycle (`enter -> hold -> exit`)
+  - Consumes music playback observer events instead of polling music manager state
+- `NowPlayingOverlayRenderer`
+  - Pure render unit that draws text/background from style + computed frame state
+- `AnchorLayoutResolver` + `UIAnchor`
+  - Resolves 9-grid anchor-based top-left coordinates with X/Y offsets
+- `OverlayAnimationResolver`
+  - Resolves animation direction by anchor
+  - Corner anchors prioritize left/right direction
 - `MusicConditionEvaluator`
   - Evaluates rules against player context (biome, time, weather, dimension, entities, GUI, etc.)
 
@@ -82,8 +93,12 @@ The architecture separates condition matching from audio resource provisioning, 
 5. On transitions (definition switch, retry, next track):
    - outgoing track is faded out via `FadingMusicSoundInstance`
    - incoming track is started with fade-in and updated `currentMusicSoundEventKey`
-6. HUD output:
-   - while MOD music is active, optional `Now Playing` text is rendered
+6. Event bridge:
+   - `ClientMusicManager` emits `onTrackStarted/onTrackStopped` observer events
+   - `NowPlayingOverlayController` updates toast state from those events
+7. HUD output:
+   - `NowPlayingOverlayController` computes animated frame state from `overlay_style`
+   - `NowPlayingOverlayRenderer` draws final text/background without accessing music-selection logic
 
 ## 5. Compatibility Constraints
 

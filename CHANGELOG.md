@@ -2,6 +2,40 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.3.0] - 2026-04-11
+
+### Added
+- State-driven `Now Playing` overlay component architecture:
+  - `NowPlayingOverlayController` (state/event bridge)
+  - `NowPlayingOverlayRenderer` (render-only component)
+  - `AnchorLayoutResolver` + `UIAnchor` (9-grid anchor layout)
+  - `OverlayAnimationResolver` (anchor-to-animation mapping)
+- New in-game `Now Playing Style` screen:
+  - 9-grid anchor selection
+  - X/Y offset sliders
+  - Text RGBA sliders
+  - Background toggle + RGBA sliders
+  - Enter/Display/Exit tick sliders
+  - Slide distance slider
+  - Text shadow toggle
+  - Live preview with save/cancel behavior
+- Added tests for anchor positioning and animation direction mapping.
+
+### Changed
+- Decoupled overlay rendering from `ClientMusicManager` via observer pattern (`MusicPlaybackObserver`).
+- Replaced static always-on HUD behavior with toast-style timing flow:
+  - enter animation
+  - hold duration
+  - exit animation
+- Animation behavior now depends on anchor:
+  - center: fade in/out
+  - left anchors: slide from/to left
+  - right anchors: slide from/to right
+  - top center: slide from/to top
+  - bottom center: slide from/to bottom
+  - corner anchors prioritize left/right behavior.
+- Client settings schema upgraded with `overlay_style` and backward-compatible migration from legacy `showNowPlayingHud`.
+
 ## [1.2.1] - 2026-04-11
 
 ### Fixed

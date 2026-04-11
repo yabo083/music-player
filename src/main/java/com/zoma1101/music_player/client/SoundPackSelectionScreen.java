@@ -99,7 +99,15 @@ public class SoundPackSelectionScreen extends Screen {
                 .bounds(controlsLeft, SETTINGS_START_Y + SETTINGS_GAP_Y * 2, DONE_BUTTON_WIDTH, SETTINGS_ROW_HEIGHT)
                 .build());
 
-        int listTop = SETTINGS_START_Y + SETTINGS_GAP_Y * 2 + SETTINGS_ROW_HEIGHT + 6;
+        this.addRenderableWidget(Button.builder(Component.translatable("gui.music_player.soundpack_selection.open_overlay_style"), button -> {
+                    if (this.minecraft != null) {
+                        this.minecraft.setScreen(new NowPlayingStyleScreen(this));
+                    }
+                })
+                .bounds(controlsLeft, SETTINGS_START_Y + SETTINGS_GAP_Y * 3, DONE_BUTTON_WIDTH, SETTINGS_ROW_HEIGHT)
+                .build());
+
+        int listTop = SETTINGS_START_Y + SETTINGS_GAP_Y * 3 + SETTINGS_ROW_HEIGHT + 6;
         int listBottom = this.height - 64;
         int listHeight = Math.max(0, listBottom - listTop);
         this.soundPackList = new SoundPackList(this.minecraft, this.width, listHeight, listTop, listBottom, 36, availablePacks, this);

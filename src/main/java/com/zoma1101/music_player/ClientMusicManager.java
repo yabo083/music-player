@@ -2,6 +2,8 @@ package com.zoma1101.music_player;
 
 import com.mojang.logging.LogUtils;
 import com.zoma1101.music_player.client.ClientPlaybackSettings;
+import com.zoma1101.music_player.client.overlay.MusicPlaybackObserver;
+import com.zoma1101.music_player.client.overlay.NowPlayingOverlayController;
 import com.zoma1101.music_player.sound.FadingMusicSoundInstance;
 import com.zoma1101.music_player.sound.MusicDefinition;
 import com.zoma1101.music_player.sound.PlaybackHealthTracker;
@@ -12,7 +14,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.client.sounds.SoundManager;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
@@ -34,7 +35,6 @@ public class ClientMusicManager {
 
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final int CHECK_INTERVAL_TICKS = 20;
-    private static final int NOW_PLAYING_BAR_OFFSET = 58;
 
     @Nullable
     private static FadingMusicSoundInstance currentMusicInstance = null;
@@ -42,17 +42,22 @@ public class ClientMusicManager {
     private static String currentMusicSoundEventKey = null;
     @Nullable
     private static MusicDefinition currentMusicDefinition = null;
-    @Nullable
-    private static String currentTrackDisplayName = null;
 
     private static final List<FadingMusicSoundInstance> fadingOutInstances = new ArrayList<>();
     private static final PlaylistNavigator playlistNavigator = new PlaylistNavigator();
     private static final PlaybackHealthTracker playbackHealthTracker = new PlaybackHealthTracker();
+    private static final NowPlayingOverlayController nowPlayingOverlayController = new NowPlayingOverlayController();
+    private static final List<MusicPlaybackObserver> playbackObservers = new ArrayList<>();
 
     private static boolean isStopping = false;
     private static boolean isRecordPlaying = false;
     @Nullable
     private static SoundInstance lastPlayedRecordInstance = null;
+
+    static {
+        playbackObservers.add(nowPlayingOverlayController);
+        nowPlayingOverlayController.setStyle(ClientPlaybackSettings.getOverlayStyle());
+    }
 
     @SubscribeEvent
     public static void onClientTick(TickEvent.ClientTickEvent event) {
@@ -62,6 +67,7 @@ public class ClientMusicManager {
 
         Minecraft mc = Minecraft.getInstance();
         SoundManager soundManager = mc.getSoundManager();
+        nowPlayingOverlayController.onClientTick();
         cleanupFadingInstances(soundManager);
 
         LocalPlayer player = mc.player;
@@ -165,30 +171,11 @@ public class ClientMusicManager {
 
     @SubscribeEvent
     public static void onRenderGui(RenderGuiEvent.Post event) {
-        if (!ClientPlaybackSettings.shouldShowNowPlayingHud()) {
-            return;
-        }
-
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null || mc.options.hideGui || currentTrackDisplayName == null || currentTrackDisplayName.isBlank()) {
-            return;
-        }
-
-        if (currentMusicInstance == null || !mc.getSoundManager().isActive(currentMusicInstance)) {
-            return;
-        }
-
-        Component textComponent = Component.translatable("hud.music_player.now_playing", currentTrackDisplayName);
-        String text = textComponent.getString();
-        int textWidth = mc.font.width(text);
-        int x = (event.getWindow().getGuiScaledWidth() - textWidth) / 2;
-        int y = event.getWindow().getGuiScaledHeight() - NOW_PLAYING_BAR_OFFSET;
-
-        event.getGuiGraphics().fill(x - 4, y - 3, x + textWidth + 4, y + mc.font.lineHeight + 3, 0x66000000);
-        event.getGuiGraphics().drawString(mc.font, text, x, y, 0xFFFFFF, false);
+        nowPlayingOverlayController.render(event);
     }
 
     public static void onPlaybackSettingsChanged() {
+        nowPlayingOverlayController.setStyle(ClientPlaybackSettings.getOverlayStyle());
         if (currentMusicInstance != null) {
             currentMusicInstance.setTargetVolume(resolveTargetVolume(currentMusicDefinition));
         }
@@ -205,7 +192,6 @@ public class ClientMusicManager {
             }
             currentMusicSoundEventKey = null;
             currentMusicDefinition = null;
-            currentTrackDisplayName = null;
             playlistNavigator.reset();
             playbackHealthTracker.reset();
             return;
@@ -237,7 +223,6 @@ public class ClientMusicManager {
             stopMusic(false);
             currentMusicDefinition = nextDefinition;
             currentMusicSoundEventKey = null;
-            currentTrackDisplayName = null;
             playbackHealthTracker.reset();
 
             if (currentMusicDefinition != null) {
@@ -265,7 +250,6 @@ public class ClientMusicManager {
                 stopMusic(true);
             }
             currentMusicSoundEventKey = null;
-            currentTrackDisplayName = null;
             return;
         }
 
@@ -293,7 +277,6 @@ public class ClientMusicManager {
             playMusicByKey(nextTrackKey);
         } else {
             currentMusicSoundEventKey = null;
-            currentTrackDisplayName = null;
         }
     }
 
@@ -333,7 +316,7 @@ public class ClientMusicManager {
             soundManager.play(nextInstance);
             currentMusicInstance = nextInstance;
             currentMusicSoundEventKey = soundEventKey;
-            currentTrackDisplayName = formatTrackDisplayName(soundEventKey);
+            notifyTrackStarted(formatTrackDisplayName(soundEventKey));
             playbackHealthTracker.onTrackRequested();
             LOGGER.info("Playing music with key: [{}], resolved to RL: [{}]", soundEventKey, soundEventRl);
         } catch (ResourceLocationException e) {
@@ -353,6 +336,7 @@ public class ClientMusicManager {
 
     private static void stopMusic(boolean setStoppingFlag, boolean immediate) {
         SoundManager soundManager = Minecraft.getInstance().getSoundManager();
+        boolean hadTrackedMusic = currentMusicSoundEventKey != null;
         if (currentMusicInstance != null) {
             LOGGER.debug("Stopping music instance for key: {}", currentMusicSoundEventKey);
             if (immediate) {
@@ -374,7 +358,9 @@ public class ClientMusicManager {
             isStopping = true;
         }
         playbackHealthTracker.reset();
-        currentTrackDisplayName = null;
+        if (hadTrackedMusic) {
+            notifyTrackStopped();
+        }
     }
 
     private static void startFadeOut(FadingMusicSoundInstance instance) {
@@ -399,7 +385,6 @@ public class ClientMusicManager {
         stopMusic(false, immediateStop);
         currentMusicSoundEventKey = null;
         currentMusicDefinition = null;
-        currentTrackDisplayName = null;
         playlistNavigator.reset();
         playbackHealthTracker.reset();
         isRecordPlaying = false;
@@ -443,6 +428,21 @@ public class ClientMusicManager {
         int lastSlash = soundEventKey.lastIndexOf('/');
         String trackName = lastSlash >= 0 ? soundEventKey.substring(lastSlash + 1) : soundEventKey;
         return trackName.replace('_', ' ');
+    }
+
+    private static void notifyTrackStarted(String trackDisplayName) {
+        if (trackDisplayName == null || trackDisplayName.isBlank()) {
+            return;
+        }
+        for (MusicPlaybackObserver observer : playbackObservers) {
+            observer.onTrackStarted(trackDisplayName);
+        }
+    }
+
+    private static void notifyTrackStopped() {
+        for (MusicPlaybackObserver observer : playbackObservers) {
+            observer.onTrackStopped();
+        }
     }
 
     private static String describeDefinition(MusicDefinition definition) {

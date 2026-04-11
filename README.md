@@ -110,24 +110,43 @@ From `Music Player Pack Settings`:
 - `Fade In` slider: default fade-in duration
 - `Fade Out` slider: default fade-out duration
 - `Now Playing HUD` switch: show/hide current track text
+- `Now Playing Style...`: open the style editor screen
 
 These settings are stored in:
 
 - `config/music_player_client_settings.json`
 
-## Now Playing HUD
+## Now Playing Style Screen
 
-When enabled, the HUD shows:
+`Now Playing Style...` provides in-game customization for the text component:
 
-- `Now Playing: <track name>`
+- 9-grid anchor (`TOP_LEFT` to `BOTTOM_RIGHT`)
+- X/Y pixel offsets
+- text color RGBA
+- background on/off and background RGBA
+- enter/display/exit tick durations
+- slide distance
+- text shadow on/off
 
-The HUD is shown only while this MOD's music is actively playing.
+The screen includes a live preview and supports save/cancel behavior.
+
+## Now Playing Animation Rules
+
+The overlay uses toast-style animation (`enter -> hold -> exit`) and direction depends on anchor:
+
+- `MIDDLE_CENTER`: fade in/out
+- `*_LEFT`: slide from left and slide back to left
+- `*_RIGHT`: slide from right and slide back to right
+- `TOP_CENTER`: slide from top and slide back to top
+- `BOTTOM_CENTER`: slide from bottom and slide back to bottom
+
+Corner anchors (`TOP_LEFT`, `BOTTOM_LEFT`, `TOP_RIGHT`, `BOTTOM_RIGHT`) prioritize left/right behavior.
 
 ## Troubleshooting (No Music)
 
 If dynamic music does not play:
 
-1. Confirm your mod version is `1.2.1` or newer.
+1. Confirm your mod version is `1.3.0` or newer.
 2. Check `logs/latest.log`:
    - if you repeatedly see `Track [...] did not become active. Retrying playback.`
    - and never hear audio, you were likely hit by the fade-in startup regression fixed in `1.2.1`.
