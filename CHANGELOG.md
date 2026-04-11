@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.3.1] - 2026-04-11
+
+### Fixed
+- Fixed repeated `Now Playing` fade animation when a track never became active.
+  - Root cause: start notification was emitted on playback request, including failed retries.
+  - Fix: notify overlay only after the sound instance is confirmed active.
+- Fixed retry budget reset on same-track recovery attempts.
+  - Root cause: each retry request reset `PlaybackHealthTracker`, causing endless retry loops for broken tracks.
+  - Fix: retry state now keeps attempts for the same inactive track key and only resets on real track changes.
+- Fixed cases where MOD music and vanilla background music could play together.
+  - MOD playback now proactively stops vanilla `MusicManager` when MOD music should take over.
+
 ## [1.3.0] - 2026-04-11
 
 ### Added

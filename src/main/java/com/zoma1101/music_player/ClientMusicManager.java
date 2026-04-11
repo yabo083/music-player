@@ -7,6 +7,7 @@ import com.zoma1101.music_player.client.overlay.NowPlayingOverlayController;
 import com.zoma1101.music_player.sound.FadingMusicSoundInstance;
 import com.zoma1101.music_player.sound.MusicDefinition;
 import com.zoma1101.music_player.sound.PlaybackHealthTracker;
+import com.zoma1101.music_player.sound.PlaybackStartNotifier;
 import com.zoma1101.music_player.sound.PlaylistNavigator;
 import com.zoma1101.music_player.util.MusicConditionEvaluator;
 import net.minecraft.ResourceLocationException;
@@ -46,6 +47,7 @@ public class ClientMusicManager {
     private static final List<FadingMusicSoundInstance> fadingOutInstances = new ArrayList<>();
     private static final PlaylistNavigator playlistNavigator = new PlaylistNavigator();
     private static final PlaybackHealthTracker playbackHealthTracker = new PlaybackHealthTracker();
+    private static final PlaybackStartNotifier playbackStartNotifier = new PlaybackStartNotifier();
     private static final NowPlayingOverlayController nowPlayingOverlayController = new NowPlayingOverlayController();
     private static final List<MusicPlaybackObserver> playbackObservers = new ArrayList<>();
 
@@ -77,7 +79,7 @@ public class ClientMusicManager {
                     LOGGER.info("Record music [{}] seems to have stopped. Resuming MOD music checks.", lastPlayedRecordInstance.getLocation());
                     isRecordPlaying = false;
                     lastPlayedRecordInstance = null;
-                    currentMusicSoundEventKey = null;
+                    clearCurrentTrackKey();
                     stopMusic(false);
                     updateMusic();
                 } else if (lastPlayedRecordInstance == null) {
@@ -88,7 +90,7 @@ public class ClientMusicManager {
                     if (currentMusicInstance != null) {
                         LOGGER.debug("Record is still playing. Ensuring MOD music is stopped.");
                         stopMusic(true);
-                        currentMusicSoundEventKey = null;
+                        clearCurrentTrackKey();
                     }
                 }
             } else {
@@ -132,7 +134,7 @@ public class ClientMusicManager {
                 if (currentMusicInstance != null) {
                     LOGGER.info("Stopping MOD music because a record-source sound started.");
                     stopMusic(true);
-                    currentMusicSoundEventKey = null;
+                    clearCurrentTrackKey();
                 }
             }
             return;
@@ -190,7 +192,7 @@ public class ClientMusicManager {
                 LOGGER.warn("Player or Level became null, stopping music.");
                 stopMusic(false, true);
             }
-            currentMusicSoundEventKey = null;
+            clearCurrentTrackKey();
             currentMusicDefinition = null;
             playlistNavigator.reset();
             playbackHealthTracker.reset();
@@ -206,7 +208,7 @@ public class ClientMusicManager {
             if (currentMusicInstance != null) {
                 LOGGER.debug("Record is playing, ensuring MOD music is stopped during updateMusic.");
                 stopMusic(true);
-                currentMusicSoundEventKey = null;
+                clearCurrentTrackKey();
             }
             return;
         }
@@ -222,7 +224,7 @@ public class ClientMusicManager {
             String previousKey = currentMusicSoundEventKey;
             stopMusic(false);
             currentMusicDefinition = nextDefinition;
-            currentMusicSoundEventKey = null;
+            clearCurrentTrackKey();
             playbackHealthTracker.reset();
 
             if (currentMusicDefinition != null) {
@@ -249,9 +251,11 @@ public class ClientMusicManager {
                 LOGGER.warn("Music should NOT be playing, but instance for key [{}] is active. Stopping.", currentMusicSoundEventKey);
                 stopMusic(true);
             }
-            currentMusicSoundEventKey = null;
+            clearCurrentTrackKey();
             return;
         }
+
+        mc.getMusicManager().stopPlaying();
 
         if (currentMusicSoundEventKey == null) {
             String nextTrackKey = playlistNavigator.nextTrackKey(currentMusicDefinition, false);
@@ -261,6 +265,7 @@ public class ClientMusicManager {
             return;
         }
 
+        announceTrackStartIfActive(isActuallyPlaying);
         PlaybackHealthTracker.Decision decision = playbackHealthTracker.onHeartbeat(isActuallyPlaying);
         if (isActuallyPlaying || decision == PlaybackHealthTracker.Decision.NONE) {
             return;
@@ -276,7 +281,7 @@ public class ClientMusicManager {
         if (nextTrackKey != null) {
             playMusicByKey(nextTrackKey);
         } else {
-            currentMusicSoundEventKey = null;
+            clearCurrentTrackKey();
         }
     }
 
@@ -295,7 +300,9 @@ public class ClientMusicManager {
         }
 
         try {
-            SoundManager soundManager = Minecraft.getInstance().getSoundManager();
+            Minecraft mc = Minecraft.getInstance();
+            SoundManager soundManager = mc.getSoundManager();
+            mc.getMusicManager().stopPlaying();
             ResourceLocation soundEventRl = ResourceLocation.fromNamespaceAndPath(Music_Player.MOD_ID, soundEventKey);
 
             if (currentMusicInstance != null) {
@@ -316,8 +323,8 @@ public class ClientMusicManager {
             soundManager.play(nextInstance);
             currentMusicInstance = nextInstance;
             currentMusicSoundEventKey = soundEventKey;
-            notifyTrackStarted(formatTrackDisplayName(soundEventKey));
-            playbackHealthTracker.onTrackRequested();
+            playbackStartNotifier.onPlaybackRequested(soundEventKey);
+            playbackHealthTracker.onTrackRequested(soundEventKey);
             LOGGER.info("Playing music with key: [{}], resolved to RL: [{}]", soundEventKey, soundEventRl);
         } catch (ResourceLocationException e) {
             LOGGER.error("Invalid ResourceLocation format for sound event key [{}] with namespace [{}]: {}",
@@ -358,6 +365,7 @@ public class ClientMusicManager {
             isStopping = true;
         }
         playbackHealthTracker.reset();
+        playbackStartNotifier.reset();
         if (hadTrackedMusic) {
             notifyTrackStopped();
         }
@@ -383,7 +391,7 @@ public class ClientMusicManager {
 
     private static void resetPlaybackState(boolean immediateStop) {
         stopMusic(false, immediateStop);
-        currentMusicSoundEventKey = null;
+        clearCurrentTrackKey();
         currentMusicDefinition = null;
         playlistNavigator.reset();
         playbackHealthTracker.reset();
@@ -428,6 +436,19 @@ public class ClientMusicManager {
         int lastSlash = soundEventKey.lastIndexOf('/');
         String trackName = lastSlash >= 0 ? soundEventKey.substring(lastSlash + 1) : soundEventKey;
         return trackName.replace('_', ' ');
+    }
+
+    private static void announceTrackStartIfActive(boolean isActuallyPlaying) {
+        String startedTrackKey = playbackStartNotifier.onHeartbeat(isActuallyPlaying);
+        if (startedTrackKey == null) {
+            return;
+        }
+        notifyTrackStarted(formatTrackDisplayName(startedTrackKey));
+    }
+
+    private static void clearCurrentTrackKey() {
+        currentMusicSoundEventKey = null;
+        playbackStartNotifier.reset();
     }
 
     private static void notifyTrackStarted(String trackDisplayName) {

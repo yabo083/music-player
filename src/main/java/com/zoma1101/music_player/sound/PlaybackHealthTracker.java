@@ -15,15 +15,25 @@ public class PlaybackHealthTracker {
     private boolean trackWasActive = false;
     private int inactiveHeartbeats = 0;
     private int retryAttempts = 0;
+    private String currentTrackKey = null;
 
     public void reset() {
         trackWasActive = false;
         inactiveHeartbeats = 0;
         retryAttempts = 0;
+        currentTrackKey = null;
     }
 
-    public void onTrackRequested() {
-        reset();
+    public void onTrackRequested(String trackKey) {
+        boolean sameTrackRetry = trackKey != null
+                && trackKey.equals(currentTrackKey)
+                && !trackWasActive;
+        currentTrackKey = trackKey;
+        inactiveHeartbeats = 0;
+        if (!sameTrackRetry) {
+            trackWasActive = false;
+            retryAttempts = 0;
+        }
     }
 
     public Decision onHeartbeat(boolean isTrackActive) {
