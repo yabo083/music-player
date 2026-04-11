@@ -47,6 +47,8 @@ The architecture separates condition matching from audio resource provisioning, 
 - `GameContextHelper` + `CombatStateTracker` + `CombatPulseTracker`
   - Produces the runtime combat flag used by condition matching
   - Combines nearby-mob engagement analysis with client event pulses (player attack / player hurt / enemy hurt by player)
+  - Decays pulse windows on every client tick (not on sparse condition checks)
+  - Resets combat tracking together with playback state on client login/logout to prevent cross-session state leakage
   - Applies a short grace window to avoid rapid enter/exit combat thrash
 
 ## 3. Condition JSON Contract (Architecture Level)
@@ -85,7 +87,7 @@ The architecture separates condition matching from audio resource provisioning, 
 ## 4. Playback Decision and Data Flow
 
 1. `SoundPackManager` loads each `MusicDefinition` and maps every `music` item to its own `soundEventKey`.
-2. `ClientMusicManager` periodically computes the best matched definition (condition + priority), with combat-first precedence:
+2. On each client tick, `ClientMusicManager` advances combat pulse decay through `GameContextHelper`, then periodically computes the best matched definition (condition + priority), with combat-first precedence:
    - if `isInCombat = true`, it tries `is_combat = true` definitions first
    - if no combat definition matches, it falls back to normal ambient definitions
 3. When the matched definition changes:

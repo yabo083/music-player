@@ -50,10 +50,7 @@ public class GameContextHelper {
      */
     public static boolean updateCombatStateAndCheck(LocalPlayer player, Level level) {
         if (player == null || level == null) {
-            activeCombatEntityIds.clear(); // プレイヤーやレベルが無効なら戦闘状態クリア
-            combatPulseTracker.reset();
-            combatStateTracker.reset();
-            lastComputedCombatState = false;
+            resetCombatTracking(); // プレイヤーやレベルが無効なら戦闘状態クリア
             return false;
         }
 
@@ -70,7 +67,7 @@ public class GameContextHelper {
             }
         }
 
-        boolean hasEventPulse = combatPulseTracker.tickAndCheckActive();
+        boolean hasEventPulse = combatPulseTracker.isActive();
         if (hasEventPulse) {
             currentlyEngagedIds.add(COMBAT_PULSE_SENTINEL_ID);
         }
@@ -92,6 +89,17 @@ public class GameContextHelper {
             lastComputedCombatState = inCombat;
         }
         return inCombat;
+    }
+
+    public static void onClientTick() {
+        combatPulseTracker.onClientTick();
+    }
+
+    public static void resetCombatTracking() {
+        activeCombatEntityIds.clear();
+        combatPulseTracker.reset();
+        combatStateTracker.reset();
+        lastComputedCombatState = false;
     }
 
     public static void registerClientCombatPulse(String reason) {

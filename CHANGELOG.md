@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.3.6] - 2026-04-12
+
+### Fixed
+- Fixed a regression where combat music could stay active too easily (including right after entering a world) and starve ambient day/night/weather tracks.
+  - Root cause 1: combat event pulses were consumed only during condition evaluation checks (every 20 ticks), stretching pulse lifetime far beyond intended real combat windows.
+  - Root cause 2: combat tracking state was not reset on login/logout playback reset, allowing stale combat state to leak into the next world session.
+  - Fix:
+    - changed combat pulse decay to run every client tick and made combat checks read pulse state without consuming it,
+    - reset combat tracking state together with playback state on login/logout,
+    - kept combat grace behavior while restoring expected ambient fallback after combat ends.
+
 ## [1.3.5] - 2026-04-12
 
 ### Fixed

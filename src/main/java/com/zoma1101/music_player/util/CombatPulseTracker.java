@@ -8,23 +8,30 @@ public final class CombatPulseTracker {
         this.pulseTicks = Math.max(0, pulseTicks);
     }
 
-    public void pulse() {
+    public synchronized void pulse() {
         remainingTicks = Math.max(remainingTicks, pulseTicks);
     }
 
-    public boolean tickAndCheckActive() {
-        if (remainingTicks <= 0) {
-            return false;
+    public synchronized void onClientTick() {
+        if (remainingTicks > 0) {
+            remainingTicks--;
         }
-        remainingTicks--;
-        return true;
     }
 
-    public void reset() {
+    public synchronized boolean isActive() {
+        return remainingTicks > 0;
+    }
+
+    public synchronized boolean tickAndCheckActive() {
+        onClientTick();
+        return isActive();
+    }
+
+    public synchronized void reset() {
         remainingTicks = 0;
     }
 
-    public int getRemainingTicks() {
+    public synchronized int getRemainingTicks() {
         return remainingTicks;
     }
 }

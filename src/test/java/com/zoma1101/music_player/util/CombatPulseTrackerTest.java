@@ -8,30 +8,53 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CombatPulseTrackerTest {
 
     @Test
-    void pulseKeepsTrackerActiveForConfiguredTicks() {
+    void queryDoesNotConsumePulseTicks() {
         CombatPulseTracker tracker = new CombatPulseTracker(3);
         tracker.pulse();
 
-        assertTrue(tracker.tickAndCheckActive());
-        assertTrue(tracker.tickAndCheckActive());
-        assertTrue(tracker.tickAndCheckActive());
-        assertFalse(tracker.tickAndCheckActive());
+        for (int i = 0; i < 10; i++) {
+            assertTrue(tracker.isActive());
+        }
+    }
+
+    @Test
+    void pulseExpiresOnlyOnTickProgress() {
+        CombatPulseTracker tracker = new CombatPulseTracker(4);
+        tracker.pulse();
+
+        assertTrue(tracker.isActive());
+        tracker.onClientTick();
+        tracker.onClientTick();
+        tracker.onClientTick();
+        assertTrue(tracker.isActive());
+        tracker.onClientTick();
+        assertFalse(tracker.isActive());
     }
 
     @Test
     void pulseRefreshesRemainingTicks() {
         CombatPulseTracker tracker = new CombatPulseTracker(4);
         tracker.pulse();
-
-        assertTrue(tracker.tickAndCheckActive());
-        assertTrue(tracker.tickAndCheckActive());
+        tracker.onClientTick();
+        tracker.onClientTick();
+        assertTrue(tracker.isActive());
 
         tracker.pulse();
+        tracker.onClientTick();
+        tracker.onClientTick();
+        tracker.onClientTick();
+        assertTrue(tracker.isActive());
+        tracker.onClientTick();
+        assertFalse(tracker.isActive());
+    }
 
-        assertTrue(tracker.tickAndCheckActive());
-        assertTrue(tracker.tickAndCheckActive());
-        assertTrue(tracker.tickAndCheckActive());
-        assertTrue(tracker.tickAndCheckActive());
-        assertFalse(tracker.tickAndCheckActive());
+    @Test
+    void resetClearsPulseState() {
+        CombatPulseTracker tracker = new CombatPulseTracker(8);
+        tracker.pulse();
+        assertTrue(tracker.isActive());
+
+        tracker.reset();
+        assertFalse(tracker.isActive());
     }
 }

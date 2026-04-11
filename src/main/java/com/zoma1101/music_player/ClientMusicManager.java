@@ -77,6 +77,7 @@ public class ClientMusicManager {
 
         Minecraft mc = Minecraft.getInstance();
         SoundManager soundManager = mc.getSoundManager();
+        GameContextHelper.onClientTick();
         nowPlayingOverlayController.onClientTick();
         cleanupFadingInstances(soundManager);
 
@@ -439,6 +440,7 @@ public class ClientMusicManager {
         stopMusic(false, immediateStop);
         clearCurrentTrackKey();
         currentMusicDefinition = null;
+        GameContextHelper.resetCombatTracking();
         playlistNavigator.reset();
         playbackHealthTracker.reset();
         isRecordPlaying = false;
