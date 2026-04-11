@@ -13,15 +13,35 @@ public final class CombatStateTracker {
     }
 
     public boolean update(@Nullable Set<Integer> engagedMobIds) {
+        return update(engagedMobIds, 1);
+    }
+
+    public boolean update(@Nullable Set<Integer> engagedMobIds, int elapsedTicks) {
+        int normalizedElapsedTicks = Math.max(1, elapsedTicks);
         if (engagedMobIds != null && !engagedMobIds.isEmpty()) {
             remainingGraceTicks = graceTicks;
             return true;
         }
         if (remainingGraceTicks > 0) {
-            remainingGraceTicks--;
-            return true;
+            remainingGraceTicks = Math.max(0, remainingGraceTicks - normalizedElapsedTicks);
+            if (remainingGraceTicks > 0) {
+                return true;
+            }
+            return false;
         }
         return false;
+    }
+
+    public int getRemainingGraceTicks() {
+        return remainingGraceTicks;
+    }
+
+    public int getGraceTicks() {
+        return graceTicks;
+    }
+
+    public boolean isInGrace() {
+        return remainingGraceTicks > 0;
     }
 
     public void reset() {

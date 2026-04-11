@@ -8,18 +8,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class GameContextHelperCombatDecisionTest {
 
     @Test
-    void hostileMobRecentlyHitByPlayerTriggersCombatEvenIfNotAggressiveFlagged() {
+    void hostileMobOnlyHitByPlayerDoesNotLatchCombatWithoutThreatSignal() {
         boolean result = GameContextHelper.shouldTreatAsCombatTarget(
                 true,
                 false,
                 false,
                 false,
-                true,
+                false,
                 true,
                 false
         );
 
-        assertTrue(result);
+        assertFalse(result);
     }
 
     @Test
@@ -50,5 +50,35 @@ class GameContextHelperCombatDecisionTest {
         );
 
         assertFalse(result);
+    }
+
+    @Test
+    void hostileMobTargetingPlayerTriggersCombat() {
+        boolean result = GameContextHelper.shouldTreatAsCombatTarget(
+                true,
+                false,
+                true,
+                true,
+                false,
+                false,
+                false
+        );
+
+        assertTrue(result);
+    }
+
+    @Test
+    void playerRecentlyHurtByMobTriggersCombat() {
+        boolean result = GameContextHelper.shouldTreatAsCombatTarget(
+                true,
+                false,
+                true,
+                false,
+                false,
+                false,
+                true
+        );
+
+        assertTrue(result);
     }
 }

@@ -160,6 +160,7 @@ If dynamic music does not play:
 - If MOD music and vanilla background music overlap, update to `1.3.1+` (MOD takeover now forcibly stops vanilla `MusicManager`).
 - If combat tracks seem to persist after disengaging, update to `1.3.3+` (combat detection now requires player engagement and applies a short controlled exit grace).
 - If combat tracks start immediately after joining a world and ambient does not recover reliably, update to `1.3.6+` (combat pulse decay and cross-session reset were fixed).
+- If combat music still lingers too long after fights (or after death/respawn), update to `1.3.7+` (combat grace now decays by real ticks and sustained-combat signals were tightened).
 
 ## Available Condition Fields
 
@@ -189,6 +190,8 @@ This means combat tracks can override day/night/weather/biome ambient tracks whi
 Starting from `1.3.5`, combat entry additionally uses event-driven pulses (player attack / player hurt / enemy hurt by player), so combat tracks can trigger reliably even when some client mob AI relation fields are delayed or not synchronized in heavily modded packs.
 
 Starting from `1.3.6`, combat pulses decay on every client tick (instead of only on periodic match checks), and combat tracking is reset on login/logout. This keeps combat windows responsive while allowing day/night/weather ambient music to return naturally after disengaging.
+
+Starting from `1.3.7`, combat exit grace is decremented by actual elapsed game ticks (not by sparse evaluation calls), and sustained combat is anchored to direct threat signals. This prevents long sticky combat states and improves transition back to ambient tracks.
 
 Compatibility note:
 

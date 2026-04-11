@@ -11,24 +11,34 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CombatStateTrackerTest {
 
     @Test
-    void remainsInCombatForConfiguredGraceTicksAfterTargetsDisappear() {
-        CombatStateTracker tracker = new CombatStateTracker(2);
+    void graceWindowDecaysByElapsedTicksInsteadOfUpdateCalls() {
+        CombatStateTracker tracker = new CombatStateTracker(80);
 
-        assertTrue(tracker.update(Set.of(101)));
-        assertTrue(tracker.update(Collections.emptySet()));
-        assertTrue(tracker.update(Collections.emptySet()));
-        assertFalse(tracker.update(Collections.emptySet()));
+        assertTrue(tracker.update(Set.of(101), 1));
+        assertTrue(tracker.update(Collections.emptySet(), 20));
+        assertTrue(tracker.update(Collections.emptySet(), 20));
+        assertTrue(tracker.update(Collections.emptySet(), 20));
+        assertFalse(tracker.update(Collections.emptySet(), 20));
     }
 
     @Test
-    void freshCombatSignalResetsGraceWindow() {
+    void freshCombatSignalResetsGraceWindowWithElapsedTicks() {
+        CombatStateTracker tracker = new CombatStateTracker(60);
+
+        assertTrue(tracker.update(Set.of(101), 1));
+        assertTrue(tracker.update(Collections.emptySet(), 20));
+        assertTrue(tracker.update(Set.of(202), 1));
+        assertTrue(tracker.update(Collections.emptySet(), 20));
+        assertTrue(tracker.update(Collections.emptySet(), 20));
+        assertFalse(tracker.update(Collections.emptySet(), 20));
+    }
+
+    @Test
+    void nonPositiveElapsedTicksAreTreatedAsSingleTick() {
         CombatStateTracker tracker = new CombatStateTracker(2);
 
-        assertTrue(tracker.update(Set.of(101)));
-        assertTrue(tracker.update(Collections.emptySet()));
-        assertTrue(tracker.update(Set.of(202)));
-        assertTrue(tracker.update(Collections.emptySet()));
-        assertTrue(tracker.update(Collections.emptySet()));
-        assertFalse(tracker.update(Collections.emptySet()));
+        assertTrue(tracker.update(Set.of(101), 1));
+        assertTrue(tracker.update(Collections.emptySet(), 0));
+        assertFalse(tracker.update(Collections.emptySet(), -5));
     }
 }

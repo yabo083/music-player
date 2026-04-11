@@ -32,6 +32,7 @@ public class GameContextHelper {
     private static final CombatStateTracker combatStateTracker = new CombatStateTracker(COMBAT_EXIT_GRACE_TICKS);
     private static final CombatPulseTracker combatPulseTracker = new CombatPulseTracker(CLIENT_COMBAT_PULSE_TICKS);
     private static boolean lastComputedCombatState = false;
+    private static int lastCombatEvaluationPlayerTick = Integer.MIN_VALUE;
 
     // 戦闘・村判定で使用する定数
     private static final double COMBAT_CHECK_RADIUS = 24.0; // 戦闘判定の半径
@@ -53,6 +54,16 @@ public class GameContextHelper {
             resetCombatTracking(); // プレイヤーやレベルが無効なら戦闘状態クリア
             return false;
         }
+        if (player.isDeadOrDying() || player.getHealth() <= 0.0F) {
+            resetCombatTracking();
+            return false;
+        }
+
+        int elapsedTicks = 1;
+        if (lastCombatEvaluationPlayerTick != Integer.MIN_VALUE) {
+            elapsedTicks = Math.max(1, player.tickCount - lastCombatEvaluationPlayerTick);
+        }
+        lastCombatEvaluationPlayerTick = player.tickCount;
 
         Set<Integer> currentlyEngagedIds = new HashSet<>();
         List<Mob> nearbyMobs = level.getEntitiesOfClass(
@@ -76,7 +87,7 @@ public class GameContextHelper {
         activeCombatEntityIds.addAll(currentlyEngagedIds);
         activeCombatEntityIds.remove(COMBAT_PULSE_SENTINEL_ID);
 
-        boolean inCombat = combatStateTracker.update(currentlyEngagedIds);
+        boolean inCombat = combatStateTracker.update(currentlyEngagedIds, elapsedTicks);
         if (inCombat != lastComputedCombatState) {
             LOGGER.info(
                     "Combat state changed: {} -> {} (engagedMobs={}, eventPulseActive={}, pulseTicksLeft={})",
@@ -100,6 +111,7 @@ public class GameContextHelper {
         combatPulseTracker.reset();
         combatStateTracker.reset();
         lastComputedCombatState = false;
+        lastCombatEvaluationPlayerTick = Integer.MIN_VALUE;
     }
 
     public static void registerClientCombatPulse(String reason) {
@@ -114,7 +126,6 @@ public class GameContextHelper {
 
         LivingEntity target = mob.getTarget();
         LivingEntity mobLastHurtBy = mob.getLastHurtByMob();
-        LivingEntity playerLastHurtMob = player.getLastHurtMob();
         LivingEntity playerLastHurtBy = player.getLastHurtByMob();
 
         return shouldTreatAsCombatTarget(
@@ -123,7 +134,7 @@ public class GameContextHelper {
                 mob.canAttack(player),
                 target != null && target.getId() == player.getId(),
                 mobLastHurtBy != null && mobLastHurtBy.getId() == player.getId(),
-                playerLastHurtMob != null && playerLastHurtMob.getId() == mob.getId(),
+                false,
                 playerLastHurtBy != null && playerLastHurtBy.getId() == mob.getId()
         );
     }
@@ -137,19 +148,19 @@ public class GameContextHelper {
             boolean playerRecentlyHurtMob,
             boolean playerRecentlyHurtByMob
     ) {
-        boolean hasCombatRelation = targetingPlayer
-                || mobRecentlyHurtByPlayer
-                || playerRecentlyHurtMob
-                || playerRecentlyHurtByMob;
-        if (!hasCombatRelation) {
-            return false;
-        }
-
+        // Ongoing combat should be anchored on threat signals to the player.
         if (targetingPlayer || playerRecentlyHurtByMob) {
             return true;
         }
 
-        return hostileByClass || aggressive || canAttackPlayer;
+        // Player-initiated hits are handled by short event pulses; avoid sticky lock by not
+        // treating stale "player recently hurt mob" relation as sustained combat evidence.
+        if (playerRecentlyHurtMob) {
+            return false;
+        }
+
+        // Keep a small fallback for hostile mobs that were just hurt by player and can retaliate.
+        return mobRecentlyHurtByPlayer && (hostileByClass || aggressive || canAttackPlayer);
     }
 
     private static boolean isIgnoredPassenger(Mob mob) {

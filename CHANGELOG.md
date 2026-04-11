@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.3.7] - 2026-04-12
+
+### Fixed
+- Fixed combat-to-ambient transition sticking for too long (including cases where combat music kept playing after death/respawn).
+  - Root cause 1: combat grace countdown (`COMBAT_EXIT_GRACE_TICKS`) was decremented per evaluation cycle instead of real game ticks, while evaluation runs every 20 ticks; effective grace became much longer than configured.
+  - Root cause 2: sustained combat scanning considered "player recently hurt mob" as persistent combat evidence, which could latch combat state after engagement had already ended.
+  - Fix:
+    - `CombatStateTracker` now supports elapsed-tick aware updates and decrements grace by real elapsed ticks,
+    - `GameContextHelper` now feeds elapsed ticks based on player tick progression and clears combat tracking when player is dead/dying,
+    - sustained combat scan now prioritizes direct threat signals (targeting player / player recently hurt by mob), while player-initiated hits rely on short combat pulses for entry.
+
 ## [1.3.6] - 2026-04-12
 
 ### Fixed
