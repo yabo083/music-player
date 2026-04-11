@@ -57,15 +57,15 @@ public class MusicDefinition {
     @Nullable
     public List<String> biomes = null;
 
-    @SerializedName("is_night")
+    @SerializedName(value = "is_night", alternate = {"night"})
     @Nullable
     public Boolean isNight = null;
 
-    @SerializedName("is_combat")
+    @SerializedName(value = "is_combat", alternate = {"combat"})
     @Nullable
     public Boolean isCombat = null;
 
-    @SerializedName("is_village")
+    @SerializedName(value = "is_village", alternate = {"village"})
     @Nullable
     public Boolean isVillage = null;
 

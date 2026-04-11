@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented in this file.
 
+## [1.3.3] - 2026-04-12
+
+### Changed
+- Reworked combat-state detection to reduce sticky false positives:
+  - combat now requires hostile mobs to be engaged with the player (targeting player or recent mutual damage relation),
+  - added a short combat-exit grace window to avoid rapid music thrash on edge transitions.
+
+### Added
+- Added compatibility aliases for legacy condition field names:
+  - `combat` -> `is_combat`
+  - `night` -> `is_night`
+  - `village` -> `is_village`
+- Added regression tests for condition alias parsing and combat grace-window behavior.
+
 ## [1.3.2] - 2026-04-11
 
 ### Fixed

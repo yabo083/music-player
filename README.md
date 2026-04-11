@@ -158,6 +158,7 @@ If dynamic music does not play:
 
 - If `Now Playing` keeps fading in/out for tracks that never actually start, update to `1.3.1+` (start notifications now trigger only after real activation).
 - If MOD music and vanilla background music overlap, update to `1.3.1+` (MOD takeover now forcibly stops vanilla `MusicManager`).
+- If combat tracks seem to persist after disengaging, update to `1.3.3+` (combat detection now requires player engagement and applies a short controlled exit grace).
 
 ## Available Condition Fields
 
@@ -174,3 +175,10 @@ If dynamic music does not play:
 - `radius`: entity check radius
 - `min_count`: minimum entity count
 - `max_count`: maximum entity count
+
+Compatibility note:
+
+- Legacy aliases are accepted for backward compatibility:
+  - `combat` (same as `is_combat`)
+  - `night` (same as `is_night`)
+  - `village` (same as `is_village`)

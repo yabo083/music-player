@@ -12,7 +12,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -23,6 +22,8 @@ public class GameContextHelper {
 
     // 戦闘状態追跡用のフィールド
     private static final Set<Integer> activeCombatEntityIds = new HashSet<>();
+    private static final int COMBAT_EXIT_GRACE_TICKS = 80;
+    private static final CombatStateTracker combatStateTracker = new CombatStateTracker(COMBAT_EXIT_GRACE_TICKS);
 
     // 戦闘・村判定で使用する定数
     private static final double COMBAT_CHECK_RADIUS = 24.0; // 戦闘判定の半径
@@ -42,12 +43,11 @@ public class GameContextHelper {
     public static boolean updateCombatStateAndCheck(LocalPlayer player, Level level) {
         if (player == null || level == null) {
             activeCombatEntityIds.clear(); // プレイヤーやレベルが無効なら戦闘状態クリア
+            combatStateTracker.reset();
             return false;
         }
 
-        // 戦闘状態にある敵対MobのIDを収集
-        Set<Integer> currentlyAggressiveIds = new HashSet<>();
-        // 指定範囲内のMobを取得し、生存しているもののみを対象とする
+        Set<Integer> currentlyEngagedIds = new HashSet<>();
         List<Mob> nearbyMobs = level.getEntitiesOfClass(
                 Mob.class,
                 player.getBoundingBox().inflate(COMBAT_CHECK_RADIUS),
@@ -55,45 +55,46 @@ public class GameContextHelper {
         );
 
         for (Mob mob : nearbyMobs) {
-            // Mobがボートまたはトロッコに乗っているか確認
-            if (mob.isPassenger()) {
-                Entity vehicle = mob.getVehicle();
-                if (vehicle instanceof Boat || vehicle instanceof Minecart) {
-                    continue; // ボートまたはトロッコに乗っているMobは無視
-                }
-            }
-
-            // Mobが敵対的であり、かつ名札で名前が付けられていない場合
-            if (mob.isAggressive() && !mob.hasCustomName()) {
-                currentlyAggressiveIds.add(mob.getId()); // IDをリストに追加
+            if (isMobEngagedWithPlayer(mob, player)) {
+                currentlyEngagedIds.add(mob.getId());
             }
         }
 
-        // 新たに戦闘状態に入ったMobのIDを追跡リストに追加
-        if (!currentlyAggressiveIds.isEmpty()) {
-            activeCombatEntityIds.addAll(currentlyAggressiveIds);
+        activeCombatEntityIds.clear();
+        activeCombatEntityIds.addAll(currentlyEngagedIds);
+        return combatStateTracker.update(currentlyEngagedIds);
+    }
+
+    private static boolean isMobEngagedWithPlayer(Mob mob, LocalPlayer player) {
+        if (!mob.isAggressive() || mob.hasCustomName() || isIgnoredPassenger(mob)) {
+            return false;
         }
 
-        Iterator<Integer> iterator = activeCombatEntityIds.iterator();
-        while (iterator.hasNext()) {
-            int entityId = iterator.next();
-            Entity entity = level.getEntity(entityId); // IDからエンティティを取得
-
-            boolean shouldRemove = false;
-            if (entity == null || !entity.isAlive() || entity.distanceToSqr(player) > COMBAT_CHECK_RADIUS * COMBAT_CHECK_RADIUS) {
-                shouldRemove = true;
-            } else if (entity instanceof Mob mobEntity) {
-                if (mobEntity.hasCustomName() ||
-                        (mobEntity.isPassenger() && (mobEntity.getVehicle() instanceof Boat || mobEntity.getVehicle() instanceof Minecart))) {
-                    shouldRemove = true;
-                }
-            }
-
-            if (shouldRemove) {
-                iterator.remove(); // リストから削除
-            }
+        LivingEntity target = mob.getTarget();
+        if (target != null && target.getId() == player.getId()) {
+            return true;
         }
-        return !activeCombatEntityIds.isEmpty();
+
+        LivingEntity mobLastHurtBy = mob.getLastHurtByMob();
+        if (mobLastHurtBy != null && mobLastHurtBy.getId() == player.getId()) {
+            return true;
+        }
+
+        LivingEntity playerLastHurtMob = player.getLastHurtMob();
+        if (playerLastHurtMob != null && playerLastHurtMob.getId() == mob.getId()) {
+            return true;
+        }
+
+        LivingEntity playerLastHurtBy = player.getLastHurtByMob();
+        return playerLastHurtBy != null && playerLastHurtBy.getId() == mob.getId();
+    }
+
+    private static boolean isIgnoredPassenger(Mob mob) {
+        if (!mob.isPassenger()) {
+            return false;
+        }
+        Entity vehicle = mob.getVehicle();
+        return vehicle instanceof Boat || vehicle instanceof Minecart;
     }
 
     /**
